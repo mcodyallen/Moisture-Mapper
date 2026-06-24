@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<title>⛳ Moisture Mapper v5</title>
+<title>⛳ Moisture Mapper v6</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
@@ -232,6 +232,34 @@ input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--
 
 .empty-state{text-align:center;color:var(--muted);padding:36px 0;font-size:12px;line-height:2.2;}
 .divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+
+/* EDIT MODAL */
+#edit-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9100;align-items:flex-end;justify-content:center;}
+#edit-modal.open{display:flex;}
+#edit-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:18px 16px 32px;width:100%;max-width:480px;}
+#edit-box h3{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+#edit-photo-preview{width:100%;max-height:140px;object-fit:cover;border-radius:7px;margin-bottom:12px;display:none;border:1px solid var(--border);}
+#edit-photo-placeholder{background:var(--bg3);border:1px solid var(--border);border-radius:7px;height:52px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);margin-bottom:12px;}
+.edit-meta{font-size:10px;color:var(--text2);margin-bottom:12px;line-height:1.8;}
+.edit-input-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+#edit-value-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px;border-radius:8px;font-family:var(--font);font-size:28px;font-weight:700;text-align:center;}
+#edit-value-input:focus{outline:none;border-color:var(--green2);}
+.edit-quick-btns{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;}
+.eq-btn{padding:6px 10px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:11px;cursor:pointer;}
+.eq-btn:active{background:var(--green3);color:#fff;border-color:var(--green2);}
+.edit-action-row{display:flex;gap:8px;}
+#edit-save-btn{flex:2;padding:12px;border-radius:8px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;}
+#edit-cancel-btn{flex:1;padding:12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--font);font-size:13px;cursor:pointer;}
+.spr-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px;}
+.spr-icon{width:36px;height:36px;border-radius:50%;background:#0d2040;border:2px solid #3a6aa8;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.spr-info{flex:1;}
+.spr-head{font-size:12px;font-weight:700;color:var(--text);}
+.spr-meta{font-size:10px;color:var(--text2);line-height:1.7;margin-top:2px;}
+.spr-del{background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 5px;flex-shrink:0;}
+
+/* MAP LAYER TOGGLE for sprinklers */
+#btn-sprinklers{background:rgba(8,15,8,.9);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--font);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:.5px;white-space:nowrap;backdrop-filter:blur(4px);}
+#btn-sprinklers.active-ctrl{color:#8ac4f0;border-color:#3a6aa8;}
 </style>
 </head>
 <body>
@@ -269,6 +297,7 @@ input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--
     <button class="tab-btn" data-tab="map" onclick="switchTab('map')"><span class="icon">🛰</span>Map</button>
     <button class="tab-btn" data-tab="trend" onclick="switchTab('trend')"><span class="icon">📈</span>Trend</button>
     <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><span class="icon">📋</span>History</button>
+    <button class="tab-btn" data-tab="sprinklers" onclick="switchTab('sprinklers')"><span class="icon">💧</span>Heads</button>
     <button class="tab-btn" data-tab="export" onclick="switchTab('export')"><span class="icon">⬇</span>Export</button>
   </div>
 
@@ -423,6 +452,66 @@ input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--
       <div id="history-content"></div>
     </div>
 
+    <!-- ── SPRINKLERS ── -->
+    <div class="panel" id="panel-sprinklers">
+
+      <div class="field-label">Green / Location</div>
+      <select id="spr-green-sel" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;width:100%;margin-bottom:12px;"></select>
+
+      <!-- Add new head form -->
+      <div id="spr-form" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:11px 12px;margin-bottom:14px;">
+        <div class="field-label">Log New Sprinkler Head</div>
+
+        <div class="field-label" style="margin-top:6px;">Make & Model</div>
+        <div style="display:flex;gap:7px;margin-bottom:10px;">
+          <input id="spr-make" type="text" placeholder="e.g. Toro" style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;"/>
+          <input id="spr-model" type="text" placeholder="e.g. 640 Series" style="flex:2;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;"/>
+        </div>
+
+        <div style="display:flex;gap:7px;margin-bottom:10px;">
+          <div style="flex:1;">
+            <div class="field-label">Throw (ft)</div>
+            <input id="spr-throw" type="number" min="1" max="200" placeholder="e.g. 35" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:13px;font-weight:700;"/>
+          </div>
+          <div style="flex:1;">
+            <div class="field-label">Arc (°)</div>
+            <select id="spr-arc" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;">
+              <option value="90">90° — Quarter</option>
+              <option value="120">120° — Third</option>
+              <option value="180">180° — Half</option>
+              <option value="270">270° — Three-quarter</option>
+              <option value="360" selected>360° — Full</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="spr-arc-custom-wrap" style="display:none;margin-bottom:10px;">
+          <div class="field-label">Custom Arc (°)</div>
+          <input id="spr-arc-custom" type="number" min="1" max="360" placeholder="e.g. 210" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:13px;"/>
+        </div>
+
+        <div class="field-label">Notes <span style="color:var(--muted);font-size:9px;">(optional — e.g. "adjusted down", "blocked by cart path")</span></div>
+        <input id="spr-notes" type="text" placeholder="Optional notes…" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;margin-bottom:10px;"/>
+
+        <div class="field-label">Last Service Date <span style="color:var(--muted);font-size:9px;">(optional)</span></div>
+        <input id="spr-service" type="date" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;margin-bottom:12px;"/>
+
+        <button id="spr-gps-btn" onclick="captureSprinklerGPS()" style="width:100%;padding:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+          <span id="spr-gps-icon">📍</span><span id="spr-gps-txt">Capture GPS Location</span>
+        </button>
+        <div id="spr-coord-display" style="display:none;padding:6px 10px;background:#0a200a;border:1px solid var(--green2);border-radius:5px;font-size:10px;color:var(--green);margin-bottom:10px;"></div>
+
+        <button id="spr-save-btn" onclick="saveSprinkler()" style="width:100%;padding:12px;border-radius:7px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;opacity:.35;transition:opacity .15s;">
+          Save Sprinkler Head
+        </button>
+      </div>
+
+      <!-- Heads list for selected green -->
+      <div class="field-label" id="spr-list-label">Logged Heads</div>
+      <div id="spr-list"></div>
+    </div>
+
     <!-- ── EXPORT ── -->
     <div class="panel" id="panel-export">
       <div class="field-label">Data Summary</div>
@@ -458,6 +547,33 @@ input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--
   <button id="photo-modal-close" onclick="closePhotoModal()">✕ Close</button>
 </div>
 
+<!-- EDIT READING MODAL -->
+<div id="edit-modal">
+  <div id="edit-box">
+    <h3>✏️ Edit Moisture Reading</h3>
+    <img id="edit-photo-preview" src="" alt="Meter photo"/>
+    <div id="edit-photo-placeholder">📷 No photo for this point</div>
+    <div class="edit-meta" id="edit-meta-text"></div>
+    <div class="field-label">Moisture Value (0–100%)</div>
+    <div class="edit-input-row">
+      <input id="edit-value-input" type="number" min="0" max="100" placeholder="—"/>
+    </div>
+    <div class="field-label">Quick-set</div>
+    <div class="edit-quick-btns">
+      <button class="eq-btn" onclick="setEditQuick(15)">15% Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(25)">25% Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(35)">35% Sl.Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(47)">47% Optimal</button>
+      <button class="eq-btn" onclick="setEditQuick(60)">60% Sl.Wet</button>
+      <button class="eq-btn" onclick="setEditQuick(70)">70% Wet</button>
+    </div>
+    <div class="edit-action-row">
+      <button id="edit-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button id="edit-save-btn" onclick="saveEdit()">Save Reading</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <div id="modal-overlay">
   <div id="modal-box">
@@ -473,7 +589,7 @@ input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--
 // ═══════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════
-const STORAGE_KEY = 'golf_moisture_v5';
+const STORAGE_KEY = 'golf_moisture_v6';
 function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{};}catch{return{};}}
 function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(allData));}
 let allData = load();
@@ -516,11 +632,13 @@ function showToast(msg){
 // ═══════════════════════════════════════════════════════════
 const greenSel=document.getElementById('green-sel');
 const dateSel=document.getElementById('date-sel');
-for(let i=1;i<=18;i++){const o=document.createElement('option');o.value=i;o.textContent=`Green ${i}`;greenSel.appendChild(o);}
+const GREEN_LIST=[...Array.from({length:18},(_,i)=>({value:String(i+1),label:`Green ${i+1}`})),
+  {value:'PG1',label:'Putting Green 1'},{value:'PG2',label:'Putting Green 2'},{value:'PG3',label:'Putting Green 3'}];
+GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;greenSel.appendChild(o);});
 dateSel.value=todayStr();
 
 const trendGreenSel=document.getElementById('trend-green-sel');
-for(let i=1;i<=18;i++){const o=document.createElement('option');o.value=i;o.textContent=`Green ${i}`;trendGreenSel.appendChild(o);}
+GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;trendGreenSel.appendChild(o);});
 
 greenSel.addEventListener('change',onSessionChange);
 dateSel.addEventListener('change',onSessionChange);
@@ -772,25 +890,76 @@ function closePhotoModal(){
 }
 
 // ═══════════════════════════════════════════════════════════
-// EDIT MOISTURE VALUE (called from history inline edit)
+// EDIT READING MODAL
 // ═══════════════════════════════════════════════════════════
-function editPointValue(id, val){
-  const v=parseFloat(val);
-  if(isNaN(v)||v<0||v>100)return;
+let editingId=null;
+
+function openEditModal(id){
+  // Find the point across all sessions
+  let pt=null;
+  Object.values(allData).forEach(pts=>{ const f=pts.find(p=>p.id===id); if(f)pt=f; });
+  if(!pt)return;
+  editingId=id;
+
+  // Photo
+  const prev=document.getElementById('edit-photo-preview');
+  const placeholder=document.getElementById('edit-photo-placeholder');
+  if(pt.photo){
+    prev.src=pt.photo;
+    prev.style.display='block';
+    placeholder.style.display='none';
+  } else {
+    prev.style.display='none';
+    placeholder.style.display='flex';
+  }
+
+  // Meta info
+  const ts=new Date(pt.ts);
+  document.getElementById('edit-meta-text').innerHTML=
+    `📍 ${pt.lat.toFixed(5)}, ${pt.lng.toFixed(5)}<br/>`+
+    `🕐 ${ts.toLocaleDateString()} ${ts.toLocaleTimeString()}<br/>`+
+    (pt.value!==null?`Current value: <b style="color:${mColor(pt.value)}">${pt.value}% — ${mLabel(pt.value)}</b>`:'<b style="color:#e8b83a">No value recorded yet</b>');
+
+  // Pre-fill current value
+  document.getElementById('edit-value-input').value = pt.value!==null ? pt.value : '';
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-value-input').focus(),150);
+}
+
+function setEditQuick(val){
+  document.getElementById('edit-value-input').value=val;
+}
+
+function closeEditModal(){
+  editingId=null;
+  document.getElementById('edit-modal').classList.remove('open');
+  document.getElementById('edit-photo-preview').src='';
+}
+
+function saveEdit(){
+  const raw=document.getElementById('edit-value-input').value;
+  const v=parseFloat(raw);
+  if(raw===''||isNaN(v)||v<0||v>100){
+    document.getElementById('edit-value-input').style.borderColor='#c04040';
+    setTimeout(()=>document.getElementById('edit-value-input').style.borderColor='',1000);
+    return;
+  }
   Object.keys(allData).forEach(key=>{
-    const idx=allData[key].findIndex(p=>p.id===id);
+    const idx=allData[key].findIndex(p=>p.id===editingId);
     if(idx>=0){
       allData[key][idx].value=v;
       allData[key][idx].needsValue=false;
       persist();
-      updateLiveStrip();
-      updateCaptureStats();
-      updateHeaderStats();
-      checkAlerts();
-      if(currentTab==='map')refreshMap();
-      showToast(`Updated to ${v}%`);
     }
   });
+  closeEditModal();
+  updateLiveStrip();
+  updateCaptureStats();
+  updateHeaderStats();
+  checkAlerts();
+  if(currentTab==='map')refreshMap();
+  if(currentTab==='history')renderHistory();
+  showToast(`Updated to ${v}% — ${mLabel(v)}`);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -871,13 +1040,19 @@ function updateCaptureStats(){
   rr.innerHTML='';
   [...pts].reverse().slice(0,5).forEach(p=>{
     const d=document.createElement('div');d.className='reading-row';
+    const hasVal=p.value!==null;
+    const valColor=hasVal?mColor(p.value):'#e8b83a';
+    const valText=hasVal?`${p.value}%`:'?%';
+    const labelText=hasVal?mLabel(p.value):'Tap ✏ to enter';
     const thumbHtml=p.photo
-      ?`<img class="r-thumb" src="${p.photo}" onclick="openPhotoModal('${p.photo}','${p.value}% · ${new Date(p.ts).toLocaleTimeString()}')" alt="meter"/>`
+      ?`<img class="r-thumb" src="${p.photo}" onclick="openPhotoModal('${p.photo}','${valText} · ${new Date(p.ts).toLocaleTimeString()}')" alt="meter"/>`
       :'';
-    d.innerHTML=`<div class="r-dot" style="background:${mColor(p.value)}"></div>`+
-      `<div class="r-val" style="color:${mColor(p.value)}">${p.value}%</div>`+
-      `<div class="r-meta">${mLabel(p.value)}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>`+
+    d.innerHTML=
+      `<div class="r-dot" style="background:${valColor}"></div>`+
+      `<div class="r-val" style="color:${valColor}">${valText}</div>`+
+      `<div class="r-meta">${labelText}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>`+
       thumbHtml+
+      `<button style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;flex-shrink:0;" onclick="openEditModal(${p.id})">✏</button>`+
       `<button class="r-del" onclick="promptDelete(${p.id})">✕</button>`;
     rr.appendChild(d);
   });
@@ -976,7 +1151,7 @@ function refreshMap(){
     const m=L.marker([p.lat,p.lng],{icon});
     const valStr=p.value!==null?`${p.value}% — ${mLabel(p.value)}`:'📷 Photo only — value pending';
     const photoBtn=p.photo?`<br/><button onclick="openPhotoModal('${p.photo}','${p.value!==null?p.value+'%':'?'} · Green ${curGreen()} · ${new Date(p.ts).toLocaleTimeString()}')" style="margin-top:5px;font-size:10px;color:#4ab3b8;background:none;border:1px solid #4ab3b8;border-radius:4px;padding:2px 7px;cursor:pointer;">📷 View Photo</button>`:'';
-    m.bindPopup(`<div style="font-family:monospace;font-size:12px;min-width:150px;"><b style="color:${c};font-size:13px;">${valStr}</b><br/><span style="color:#666;font-size:9px;">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span><br/><span style="color:#888;font-size:9px;">${new Date(p.ts).toLocaleTimeString()}</span>${photoBtn}<br/><button onclick="promptDelete(${p.id})" style="margin-top:5px;font-size:10px;color:#c04040;background:none;border:1px solid #c04040;border-radius:4px;padding:2px 7px;cursor:pointer;">Delete</button></div>`);
+    m.bindPopup(`<div style="font-family:monospace;font-size:12px;min-width:150px;"><b style="color:${c};font-size:13px;">${valStr}</b><br/><span style="color:#666;font-size:9px;">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span><br/><span style="color:#888;font-size:9px;">${new Date(p.ts).toLocaleTimeString()}</span>${photoBtn}<br/><div style="display:flex;gap:5px;margin-top:5px;"><button onclick="openEditModal(${p.id})" style="flex:1;font-size:10px;color:#5db85d;background:none;border:1px solid #3a7a3a;border-radius:4px;padding:3px 0;cursor:pointer;">✏ Edit</button><button onclick="promptDelete(${p.id})" style="flex:1;font-size:10px;color:#c04040;background:none;border:1px solid #c04040;border-radius:4px;padding:3px 0;cursor:pointer;">✕ Del</button></div></div>`);
     pinsLayer.addLayer(m);
     if(!showPins)return;
   });
@@ -1209,42 +1384,83 @@ function renderHistory(){
   const keys=Object.keys(allData).filter(k=>allData[k].length>0).sort().reverse();
   if(!keys.length){el.innerHTML='<div class="empty-state">No data yet.<br/>Head to Capture to start mapping.</div>';return;}
   el.innerHTML='';
+
   keys.forEach(key=>{
     const [g,...dp]=key.split('||');const date=dp.join('||');
-    const pts=allData[key];const s=calcStats(pts);
+    const pts=allData[key];
     const wx=pts.find(p=>p.weather)?.weather;
-    const card=document.createElement('div');card.className='session-card';
+    const valuedPts=pts.filter(p=>p.value!==null);
+    const pendingPts=pts.filter(p=>p.needsValue||p.value===null);
+    const sv=valuedPts.length?calcStats(valuedPts):null;
     const photoPts=pts.filter(p=>p.photo);
-    const pendingPts=pts.filter(p=>p.needsValue);
+
+    const card=document.createElement('div');
+    card.className='session-card';
+    card.style.cursor='default';
+
+    // Photo strip
     const photoStrip=photoPts.length
-      ? `<div style="display:flex;gap:5px;margin-top:7px;overflow-x:auto;padding-bottom:2px;">`+
+      ?`<div style="display:flex;gap:5px;margin-top:7px;overflow-x:auto;padding-bottom:2px;">`+
         photoPts.slice(0,6).map(p=>{
-          const valLabel=p.value!==null?`${p.value}%`:'?%';
+          const vl=p.value!==null?`${p.value}%`:'?%';
           return `<div style="position:relative;flex-shrink:0;" onclick="event.stopPropagation();">`+
-            `<img src="${p.photo}" style="width:48px;height:48px;border-radius:4px;object-fit:cover;border:1px solid ${p.needsValue?'#6a4a00':'#254545'};cursor:pointer;display:block;" onclick="openPhotoModal('${p.photo}','${valLabel} · Green ${g} · ${date}')"/>`+
-            `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);text-align:center;font-size:9px;color:${p.needsValue?'#e8b83a':'#5db85d'};border-radius:0 0 4px 4px;padding:1px 0;">${valLabel}</div>`+
+            `<img src="${p.photo}" style="width:48px;height:48px;border-radius:4px;object-fit:cover;border:1px solid ${p.value===null?'#6a4a00':'#254545'};cursor:pointer;display:block;" onclick="openPhotoModal('${p.photo}','${vl} · Green ${g} · ${date}')"/>`+
+            `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);text-align:center;font-size:9px;color:${p.value===null?'#e8b83a':'#5db85d'};border-radius:0 0 4px 4px;padding:1px 0;">${vl}</div>`+
             `</div>`;
         }).join('')+
-        (photoPts.length>6?`<div style="width:48px;height:48px;border-radius:4px;background:#0d2020;border:1px solid #254545;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ab3b8;flex-shrink:0;">+${photoPts.length-6}</div>`:'')
-        +`</div>`
-      : '';
-    // Pending value editor
-    const pendingHtml=pendingPts.length
-      ?`<div style="margin-top:7px;padding:7px;background:#1a1000;border:1px solid #4a3000;border-radius:5px;font-size:10px;color:#e8b83a;" onclick="event.stopPropagation();">`+
-        `⏳ ${pendingPts.length} point${pendingPts.length>1?'s':''} need moisture values — expand to enter`+
-        `</div>`:'';
-    const valuedPts=pts.filter(p=>p.value!==null);
-    const sv=valuedPts.length?calcStats(valuedPts):null;
+        (photoPts.length>6?`<div style="width:48px;height:48px;border-radius:4px;background:#0d2020;border:1px solid #254545;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ab3b8;flex-shrink:0;">+${photoPts.length-6}</div>`:'')+
+        `</div>`:'' ;
+
+    const pendingBadge=pendingPts.length
+      ?`<span style="background:#3a2000;color:#e8b83a;border:1px solid #6a4000;border-radius:4px;font-size:9px;padding:1px 6px;margin-left:6px;">⏳ ${pendingPts.length} pending</span>`:'';
+
     card.innerHTML=
-      `<div class="sc-head"><span class="sc-green">Green ${g}</span><span class="sc-date">${date} · ${pts.length} pts${photoPts.length?` · 📷${photoPts.length}`:''}</span></div>`+
-      (sv?`<div class="sc-stats"><span>Avg <b style="color:${mColor(sv.avg)}">${sv.avg}%</b></span><span>Min <b style="color:${mColor(sv.min)}">${sv.min}%</b></span><span>Max <b style="color:${mColor(sv.max)}">${sv.max}%</b></span></div>`:`<div class="sc-stats" style="color:var(--muted)">No values yet</div>`)+
+      `<div class="sc-head" style="cursor:pointer;" onclick="toggleSessionExpand(this)">
+        <span class="sc-green">Green ${g} ${pendingBadge}</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <span class="sc-date">${date} · ${pts.length} pts${photoPts.length?` · 📷${photoPts.length}`:''}</span>
+          <span class="expand-arrow" style="color:var(--muted);font-size:11px;">▾</span>
+        </span>
+      </div>`+
+      (sv
+        ?`<div class="sc-stats"><span>Avg <b style="color:${mColor(sv.avg)}">${sv.avg}%</b></span><span>Min <b style="color:${mColor(sv.min)}">${sv.min}%</b></span><span>Max <b style="color:${mColor(sv.max)}">${sv.max}%</b></span></div>`
+        :`<div class="sc-stats" style="color:var(--muted);">No values recorded yet</div>`)+
       (wx?`<div class="sc-wx">🌡${wx.temp}°F · 💧${wx.humidity}% · 💨${wx.wind}mph · 🌧${wx.rain}"</div>`:'')+
-      photoStrip+pendingHtml;
-    card.addEventListener('click',()=>{
-      greenSel.value=g;dateSel.value=date;onSessionChange();switchTab('map');
-    });
+      photoStrip+
+      // Map button
+      `<div style="display:flex;gap:7px;margin-top:8px;" onclick="event.stopPropagation();">
+        <button onclick="greenSel.value='${g}';dateSel.value='${date}';onSessionChange();switchTab('map');" style="flex:1;padding:7px;background:var(--bg);border:1px solid var(--border2);color:var(--text2);border-radius:5px;font-family:var(--font);font-size:11px;cursor:pointer;">🗺 View on Map</button>
+      </div>`+
+      // Expandable points list
+      `<div class="session-points" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">`+
+      pts.map(p=>{
+        const hasVal=p.value!==null;
+        const vc=hasVal?mColor(p.value):'#e8b83a';
+        const vt=hasVal?`${p.value}%`:'?%';
+        const ts=new Date(p.ts).toLocaleTimeString();
+        const thumbHtml=p.photo?`<img src="${p.photo}" style="width:32px;height:32px;border-radius:3px;object-fit:cover;cursor:pointer;border:1px solid var(--border);" onclick="openPhotoModal('${p.photo}','${vt}')"/>` :'';
+        return `<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div style="width:8px;height:8px;border-radius:50%;background:${vc};flex-shrink:0;"></div>
+          <div style="font-size:13px;font-weight:700;color:${vc};min-width:34px;">${vt}</div>
+          <div style="flex:1;font-size:9px;color:var(--muted);line-height:1.6;">${ts}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>
+          ${thumbHtml}
+          <button onclick="openEditModal(${p.id})" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;flex-shrink:0;">✏</button>
+          <button onclick="promptDelete(${p.id})" style="background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0;">✕</button>
+        </div>`;
+      }).join('')+
+      `</div>`;
+
     el.appendChild(card);
   });
+}
+
+function toggleSessionExpand(headerEl){
+  const card=headerEl.closest('.session-card');
+  const pointsList=card.querySelector('.session-points');
+  const arrow=headerEl.querySelector('.expand-arrow');
+  const open=pointsList.style.display==='none';
+  pointsList.style.display=open?'block':'none';
+  arrow.textContent=open?'▴':'▾';
 }
 
 // ═══════════════════════════════════════════════════════════
