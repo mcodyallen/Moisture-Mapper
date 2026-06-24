@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>⛳ Moisture Mapper v6</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080f08;--bg2:#0c180c;--bg3:#111f11;--bg4:#162216;
+  --border:#1c3a1c;--border2:#254525;
+  --green:#5db85d;--green2:#3a7a3a;--green3:#2a5a2a;
+  --muted:#3d5e3d;--text:#cce0cc;--text2:#7a9a7a;
+  --dry:#e05c3a;--opt:#5cb85c;--wet:#3a82c8;
+  --warn:#e8b83a;--alert:#e05c3a;
+  --font:'SF Mono','Fira Mono','Consolas',monospace;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;-webkit-tap-highlight-color:transparent;}
+#app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;position:relative;}
+
+/* HEADER */
+#header{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px 7px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#header h1{font-size:13px;font-weight:700;color:var(--green);letter-spacing:1.5px;text-transform:uppercase;}
+#header p{font-size:10px;color:var(--muted);margin-top:1px;}
+#hdr-right{text-align:right;font-size:10px;color:var(--muted);line-height:1.6;}
+
+/* SESSION BAR */
+#session-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:7px 12px;display:flex;gap:7px;align-items:center;flex-shrink:0;}
+#session-bar select,#session-bar input[type=date]{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--font);font-size:12px;flex:1;}
+
+/* WEATHER BAR */
+#weather-bar{background:var(--bg3);border-bottom:1px solid var(--border);padding:5px 12px;display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text2);flex-shrink:0;min-height:28px;}
+#weather-bar.loading{color:var(--muted);}
+.wx-item{display:flex;align-items:center;gap:3px;}
+.wx-sep{color:var(--border2);margin:0 2px;}
+
+/* ALERTS BAR */
+#alerts-bar{display:none;background:#1a0e00;border-bottom:1px solid #4a2a00;padding:6px 12px;flex-shrink:0;}
+.alert-item{font-size:10px;color:#e8a050;display:flex;align-items:center;gap:5px;padding:2px 0;}
+
+/* TABS */
+#tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;}
+.tab-btn{flex:1;padding:8px 0;font-family:var(--font);font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+.tab-btn .icon{font-size:15px;}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green);}
+
+/* CONTENT */
+#content{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+.panel{display:none;flex:1;overflow-y:auto;padding:12px 14px;}
+.panel.active{display:block;}
+#panel-map{display:none;flex:1;flex-direction:column;padding:0;}
+#panel-map.active{display:flex;}
+#panel-trend{display:none;}
+#panel-trend.active{display:block;overflow-y:auto;flex:1;padding:12px 14px;}
+
+/* MAP */
+#map-container{flex:1;position:relative;}
+#leaflet-map{height:100%;width:100%;}
+#map-controls{position:absolute;bottom:12px;left:10px;z-index:1000;display:flex;flex-direction:column;gap:5px;}
+.map-ctrl-btn{background:rgba(8,15,8,.9);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--font);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:.5px;white-space:nowrap;backdrop-filter:blur(4px);}
+.map-ctrl-btn.active-ctrl{color:var(--green);border-color:var(--green2);}
+#map-legend{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(8,15,8,.9);border:1px solid var(--border);border-radius:6px;padding:7px 9px;backdrop-filter:blur(4px);}
+.legend-row{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--text2);margin-bottom:3px;}
+.legend-swatch{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+
+/* FORM ELEMENTS */
+.field-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;}
+.field-group{margin-bottom:13px;}
+.row{display:flex;gap:7px;}
+
+/* GPS / QUICK CAPTURE */
+#quick-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;}
+#quick-toggle-row span{font-size:11px;color:var(--text2);}
+.toggle-switch{position:relative;width:38px;height:21px;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg);border:1px solid var(--border2);border-radius:21px;transition:.2s;}
+.toggle-slider:before{content:'';position:absolute;width:15px;height:15px;left:2px;top:2px;background:var(--muted);border-radius:50%;transition:.2s;}
+input:checked+.toggle-slider{background:var(--green3);border-color:var(--green2);}
+input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--green);}
+
+#gps-btn{width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+#gps-btn.ready{background:#0d2e0d;color:var(--green);border-color:var(--green2);}
+#gps-btn.loading{color:#888;}
+#gps-btn.error{color:var(--dry);border-color:#6a2a1a;}
+#coord-display{display:none;margin-top:6px;padding:6px 10px;background:#0a200a;border:1px solid var(--green2);border-radius:5px;font-size:10px;color:var(--green);}
+
+#moisture-input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:11px;border-radius:8px;font-family:var(--font);font-size:26px;font-weight:700;text-align:center;}
+#moisture-input:focus{outline:none;border-color:var(--green2);}
+#save-btn{padding:11px 18px;border-radius:8px;border:none;cursor:pointer;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.35;transition:opacity .15s,background .15s;}
+#save-btn.ready{opacity:1;background:#2a7a2a;}
+
+/* STATS */
+.stat-row{display:flex;gap:5px;margin-bottom:11px;}
+.stat-card{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 4px;text-align:center;}
+.stat-val{font-size:17px;font-weight:700;}
+.stat-lbl{font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-top:2px;}
+
+/* READING ROWS */
+.reading-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--border);}
+.reading-row:last-child{border-bottom:none;}
+.r-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.r-val{font-weight:700;font-size:14px;min-width:36px;}
+.r-meta{flex:1;font-size:9px;color:var(--muted);line-height:1.5;}
+.r-del{background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 5px;}
+
+/* GRID ESTIMATOR */
+#grid-estimator{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-bottom:13px;}
+#grid-estimator h3{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.ge-row{display:flex;gap:7px;align-items:center;margin-bottom:6px;}
+#sqft-input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:13px;}
+#ge-result{font-size:11px;color:var(--text2);line-height:1.8;padding:6px 0;}
+#ge-result b{color:var(--green);}
+
+/* ── LIVE VIEWFINDER ── */
+#panel-capture{padding:0;display:flex;flex-direction:column;overflow:hidden;}
+#viewfinder-wrap{position:relative;width:100%;flex:0 0 52%;background:#000;overflow:hidden;}
+#live-video{width:100%;height:100%;object-fit:cover;display:block;}
+#frozen-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+
+/* Reticle */
+#reticle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+#reticle-box{position:relative;width:54%;height:52%;border:none;}
+.reticle-corner{position:absolute;width:14px;height:14px;border-color:#5db85d;border-style:solid;}
+.reticle-corner.tl{top:0;left:0;border-width:2px 0 0 2px;}
+.reticle-corner.tr{top:0;right:0;border-width:2px 2px 0 0;}
+.reticle-corner.bl{bottom:0;left:0;border-width:0 0 2px 2px;}
+.reticle-corner.br{bottom:0;right:0;border-width:0 2px 2px 0;}
+#reticle-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:#5db85d;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 3px #000;}
+
+/* Flash */
+#flash-overlay{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .08s;}
+#flash-overlay.flash{opacity:0.85;}
+
+/* VF status bar */
+#vf-status-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:6px 10px;background:linear-gradient(rgba(0,0,0,.6),transparent);font-size:10px;font-family:var(--font);pointer-events:none;}
+#vf-gps-status{color:#7ec87e;}
+#vf-pt-count{color:#cce0cc;}
+
+/* Fallback */
+#cam-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#3d5e3d;font-size:13px;gap:6px;background:#080f08;}
+
+/* ── BOTTOM CAPTURE AREA ── */
+#capture-bottom{flex:1;display:flex;flex-direction:column;background:var(--bg2);overflow-y:auto;}
+
+/* Stats strip */
+#live-stats-strip{display:flex;align-items:center;background:var(--bg3);border-bottom:1px solid var(--border);padding:8px 0;flex-shrink:0;}
+.ls-item{flex:1;text-align:center;}
+.ls-val{font-size:16px;font-weight:700;color:var(--green);}
+.ls-lbl{font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-top:1px;}
+.ls-divider{width:1px;height:28px;background:var(--border);}
+
+/* Feedback */
+#capture-feedback{min-height:22px;font-size:11px;color:var(--green);text-align:center;padding:4px 12px;font-family:var(--font);}
+
+/* Capture button */
+#capture-btn-row{display:flex;flex-direction:column;align-items:center;padding:8px 0 6px;flex-shrink:0;}
+#capture-btn{width:72px;height:72px;border-radius:50%;border:3px solid var(--green2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;transition:transform .1s;}
+#capture-btn:active{transform:scale(.93);}
+#cap-btn-inner{width:56px;height:56px;border-radius:50%;background:var(--green2);display:flex;align-items:center;justify-content:center;transition:background .15s;}
+#capture-btn.capturing #cap-btn-inner{background:#1a5a1a;}
+#cap-ring{display:none;}
+#capture-hint{font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-top:5px;}
+
+/* Grid toggle */
+#grid-toggle-row{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--bg3);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);cursor:pointer;flex-shrink:0;}
+#grid-estimator{padding:10px 14px;background:var(--bg3);flex-shrink:0;}
+#grid-estimator .ge-row{margin-bottom:6px;}
+#sqft-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:13px;}
+#ge-result{font-size:11px;color:var(--text2);line-height:1.9;}
+#ge-result b{color:var(--green);}
+
+/* PHOTO VIEWER MODAL */
+#photo-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9500;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+#photo-modal.open{display:flex;}
+#photo-modal img{max-width:95vw;max-height:75vh;border-radius:8px;object-fit:contain;}
+#photo-modal-close{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:9px 24px;border-radius:20px;font-family:var(--font);font-size:12px;cursor:pointer;}
+#photo-modal-meta{font-size:11px;color:var(--text2);text-align:center;}
+
+/* THUMBNAIL in reading rows */
+.r-thumb{width:36px;height:36px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--border2);flex-shrink:0;}
+.r-thumb:active{opacity:.7;}
+
+/* TREND CHART */
+#trend-green-sel{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;width:100%;margin-bottom:12px;}
+#trend-canvas-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;}
+#trend-canvas{display:block;width:100%;}
+.trend-legend{display:flex;gap:14px;font-size:10px;color:var(--text2);margin-top:6px;flex-wrap:wrap;}
+.tl-item{display:flex;align-items:center;gap:4px;}
+.tl-dot{width:10px;height:3px;border-radius:2px;}
+
+#weather-chart-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;}
+#weather-canvas{display:block;width:100%;}
+
+/* SESSION / HISTORY CARDS */
+.session-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:7px;cursor:pointer;transition:border-color .15s;}
+.session-card:hover{border-color:var(--green2);}
+.sc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.sc-green{font-weight:700;color:var(--green);font-size:13px;}
+.sc-date{font-size:10px;color:var(--muted);}
+.sc-stats{display:flex;gap:12px;font-size:11px;}
+.sc-wx{font-size:9px;color:var(--muted);margin-top:4px;}
+
+/* EXPORT */
+.export-btn{width:100%;padding:12px;border-radius:8px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.btn-csv{background:#0d2a4a;color:#8ac4f0;}
+.btn-json{background:#2a1a4a;color:#b8a0f0;}
+.install-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:12px;margin-top:4px;}
+.install-card h3{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:7px;}
+.install-card ol{padding-left:16px;line-height:2.1;font-size:11px;color:var(--text2);}
+.install-card b{color:var(--text);}
+
+/* ALERT BADGE */
+.alert-badge{display:inline-block;background:#3a1500;color:#e8903a;border:1px solid #6a3000;border-radius:4px;font-size:9px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
+
+/* MODAL */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;}
+#modal-overlay.open{display:flex;}
+#modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px;max-width:280px;text-align:center;}
+#modal-box p{font-size:13px;margin-bottom:16px;}
+.mb-row{display:flex;gap:8px;}
+.mb-row button{flex:1;padding:9px;border-radius:6px;font-family:var(--font);font-size:12px;cursor:pointer;}
+#modal-cancel{background:transparent;border:1px solid var(--border);color:var(--text);}
+#modal-confirm{background:#5a1a1a;border:none;color:#f0a0a0;font-weight:700;}
+
+/* TOAST */
+#toast{display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#1a4a1a;border:1px solid var(--green2);color:var(--green);padding:7px 16px;border-radius:20px;font-size:11px;z-index:9999;white-space:nowrap;pointer-events:none;}
+
+.empty-state{text-align:center;color:var(--muted);padding:36px 0;font-size:12px;line-height:2.2;}
+.divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+
+/* EDIT MODAL */
+#edit-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9100;align-items:flex-end;justify-content:center;}
+#edit-modal.open{display:flex;}
+#edit-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:18px 16px 32px;width:100%;max-width:480px;}
+#edit-box h3{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+#edit-photo-preview{width:100%;max-height:140px;object-fit:cover;border-radius:7px;margin-bottom:12px;display:none;border:1px solid var(--border);}
+#edit-photo-placeholder{background:var(--bg3);border:1px solid var(--border);border-radius:7px;height:52px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);margin-bottom:12px;}
+.edit-meta{font-size:10px;color:var(--text2);margin-bottom:12px;line-height:1.8;}
+.edit-input-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+#edit-value-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px;border-radius:8px;font-family:var(--font);font-size:28px;font-weight:700;text-align:center;}
+#edit-value-input:focus{outline:none;border-color:var(--green2);}
+.edit-quick-btns{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;}
+.eq-btn{padding:6px 10px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:11px;cursor:pointer;}
+.eq-btn:active{background:var(--green3);color:#fff;border-color:var(--green2);}
+.edit-action-row{display:flex;gap:8px;}
+#edit-save-btn{flex:2;padding:12px;border-radius:8px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;}
+#edit-cancel-btn{flex:1;padding:12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--font);font-size:13px;cursor:pointer;}
+.spr-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px;}
+.spr-icon{width:36px;height:36px;border-radius:50%;background:#0d2040;border:2px solid #3a6aa8;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.spr-info{flex:1;}
+.spr-head{font-size:12px;font-weight:700;color:var(--text);}
+.spr-meta{font-size:10px;color:var(--text2);line-height:1.7;margin-top:2px;}
+.spr-del{background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 5px;flex-shrink:0;}
+
+/* MAP LAYER TOGGLE for sprinklers */
+#btn-sprinklers{background:rgba(8,15,8,.9);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--font);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:.5px;white-space:nowrap;backdrop-filter:blur(4px);}
+#btn-sprinklers.active-ctrl{color:#8ac4f0;border-color:#3a6aa8;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div>
+      <h1>⛳ Moisture Mapper</h1>
+      <p>Golf Course Turf Analytics</p>
+    </div>
+    <div id="hdr-right">
+      <span id="hdr-pts">0 pts</span><br/>
+      <span id="hdr-sessions">0 sessions</span>
+    </div>
+  </div>
+
+  <!-- SESSION BAR -->
+  <div id="session-bar">
+    <select id="green-sel"></select>
+    <input type="date" id="date-sel"/>
+  </div>
+
+  <!-- WEATHER BAR -->
+  <div id="weather-bar" class="loading">
+    <span id="wx-content">📡 Weather loads when GPS is captured…</span>
+  </div>
+
+  <!-- ALERTS BAR -->
+  <div id="alerts-bar"></div>
+
+  <!-- TABS -->
+  <div id="tab-bar">
+    <button class="tab-btn active" data-tab="capture" onclick="switchTab('capture')"><span class="icon">📍</span>Capture</button>
+    <button class="tab-btn" data-tab="map" onclick="switchTab('map')"><span class="icon">🛰</span>Map</button>
+    <button class="tab-btn" data-tab="trend" onclick="switchTab('trend')"><span class="icon">📈</span>Trend</button>
+    <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><span class="icon">📋</span>History</button>
+    <button class="tab-btn" data-tab="sprinklers" onclick="switchTab('sprinklers')"><span class="icon">💧</span>Heads</button>
+    <button class="tab-btn" data-tab="export" onclick="switchTab('export')"><span class="icon">⬇</span>Export</button>
+  </div>
+
+  <div id="content">
+
+    <!-- ── CAPTURE ── -->
+    <div class="panel active" id="panel-capture">
+
+      <!-- ── LIVE CAMERA VIEWFINDER (top half) ── -->
+      <div id="viewfinder-wrap">
+        <video id="live-video" autoplay playsinline muted></video>
+        <canvas id="snap-canvas" style="display:none;"></canvas>
+
+        <!-- Reticle overlay -->
+        <div id="reticle">
+          <div id="reticle-box">
+            <div class="reticle-corner tl"></div>
+            <div class="reticle-corner tr"></div>
+            <div class="reticle-corner bl"></div>
+            <div class="reticle-corner br"></div>
+            <div id="reticle-label">Meter Display</div>
+          </div>
+        </div>
+
+        <!-- Freeze flash overlay -->
+        <div id="flash-overlay"></div>
+
+        <!-- Frozen frame preview -->
+        <img id="frozen-frame" style="display:none;" alt="captured"/>
+
+        <!-- Top status bar inside viewfinder -->
+        <div id="vf-status-bar">
+          <span id="vf-gps-status">📍 GPS…</span>
+          <span id="vf-pt-count">0 pts</span>
+        </div>
+
+        <!-- Camera not available fallback -->
+        <div id="cam-fallback" style="display:none;">
+          <div>📷</div>
+          <div>Camera unavailable</div>
+          <div style="font-size:10px;margin-top:4px;">Use Safari on iPhone<br/>and allow camera access</div>
+        </div>
+      </div>
+
+      <!-- ── BOTTOM HALF: stats + capture button ── -->
+      <div id="capture-bottom">
+
+        <!-- Running stats strip -->
+        <div id="live-stats-strip">
+          <div class="ls-item">
+            <div class="ls-val" id="ls-cnt">0</div>
+            <div class="ls-lbl">Points</div>
+          </div>
+          <div class="ls-divider"></div>
+          <div class="ls-item">
+            <div class="ls-val" id="ls-avg">—</div>
+            <div class="ls-lbl">Avg %</div>
+          </div>
+          <div class="ls-divider"></div>
+          <div class="ls-item">
+            <div class="ls-val" id="ls-last" id="ls-last">—</div>
+            <div class="ls-lbl">Last %</div>
+          </div>
+          <div class="ls-divider"></div>
+          <div class="ls-item">
+            <div class="ls-val" id="ls-min">—</div>
+            <div class="ls-lbl">Min %</div>
+          </div>
+        </div>
+
+        <!-- Feedback toast (inline) -->
+        <div id="capture-feedback"></div>
+
+        <!-- CAPTURE BUTTON -->
+        <div id="capture-btn-row">
+          <button id="capture-btn" onclick="doCapture()">
+            <span id="cap-btn-inner">
+              <span id="cap-ring"></span>
+            </span>
+          </button>
+          <div id="capture-hint">Tap to capture GPS + photo</div>
+        </div>
+
+        <!-- Grid estimator (collapsible) -->
+        <div id="grid-toggle-row" onclick="toggleGrid()">
+          <span>📐 Grid Estimator</span>
+          <span id="grid-arrow">▾</span>
+        </div>
+        <div id="grid-estimator" style="display:none;">
+          <div class="ge-row">
+            <input id="sqft-input" type="number" placeholder="Green sq ft (e.g. 6800)" oninput="calcGrid()"/>
+          </div>
+          <div id="ge-result"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── MAP ── -->
+    <div id="panel-map" class="panel">
+      <div id="map-container">
+        <div id="leaflet-map"></div>
+        <div id="map-legend">
+          <div class="legend-row"><div class="legend-swatch" style="background:#e05c3a"></div>&lt;20 Very Dry</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#e8923a"></div>20–29 Dry</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#d4c94a"></div>30–39 Sl. Dry</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#5cb85c"></div>40–54 Optimal</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#4ab3b8"></div>55–64 Sl. Wet</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#3a82c8"></div>65–74 Wet</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#2a4fa8"></div>≥75 Very Wet</div>
+        </div>
+        <div id="map-controls">
+          <button class="map-ctrl-btn active-ctrl" id="btn-heat" onclick="toggleLayer('heat')">🌡 Heatmap</button>
+          <button class="map-ctrl-btn" id="btn-pins" onclick="toggleLayer('pins')">📍 Pins</button>
+          <button class="map-ctrl-btn" id="btn-sat"  onclick="toggleSat()">🛰 Satellite</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TREND ── -->
+    <div id="panel-trend" class="panel">
+      <div class="field-label">Select Green</div>
+      <select id="trend-green-sel" onchange="renderTrend()"></select>
+
+      <div class="field-label">Moisture Trend</div>
+      <div id="trend-canvas-wrap">
+        <canvas id="trend-canvas" height="180"></canvas>
+        <div class="trend-legend">
+          <div class="tl-item"><div class="tl-dot" style="background:#5cb85c;height:2px;"></div>Avg</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#3a82c8;height:6px;opacity:.35;"></div>Min–Max band</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#e05c3a;height:1px;border-top:1px dashed #e05c3a;"></div>Dry threshold (25%)</div>
+        </div>
+      </div>
+
+      <div class="field-label">Weather at Survey Time</div>
+      <div id="weather-chart-wrap">
+        <canvas id="weather-canvas" height="120"></canvas>
+        <div class="trend-legend" style="margin-top:5px;">
+          <div class="tl-item"><div class="tl-dot" style="background:#e8b83a;height:2px;"></div>Temp °F</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#3a82c8;height:2px;"></div>Humidity %</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#7a4ab8;height:2px;"></div>Rain mm</div>
+        </div>
+      </div>
+
+      <div id="trend-empty" class="empty-state" style="display:none;">
+        No trend data yet.<br/>Complete surveys on 2+ dates<br/>to see the trend chart.
+      </div>
+    </div>
+
+    <!-- ── HISTORY ── -->
+    <div class="panel" id="panel-history">
+      <div id="history-content"></div>
+    </div>
+
+    <!-- ── SPRINKLERS ── -->
+    <div class="panel" id="panel-sprinklers">
+
+      <div class="field-label">Green / Location</div>
+      <select id="spr-green-sel" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;width:100%;margin-bottom:12px;"></select>
+
+      <!-- Add new head form -->
+      <div id="spr-form" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:11px 12px;margin-bottom:14px;">
+        <div class="field-label">Log New Sprinkler Head</div>
+
+        <div class="field-label" style="margin-top:6px;">Make & Model</div>
+        <div style="display:flex;gap:7px;margin-bottom:10px;">
+          <input id="spr-make" type="text" placeholder="e.g. Toro" style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;"/>
+          <input id="spr-model" type="text" placeholder="e.g. 640 Series" style="flex:2;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;"/>
+        </div>
+
+        <div style="display:flex;gap:7px;margin-bottom:10px;">
+          <div style="flex:1;">
+            <div class="field-label">Throw (ft)</div>
+            <input id="spr-throw" type="number" min="1" max="200" placeholder="e.g. 35" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:13px;font-weight:700;"/>
+          </div>
+          <div style="flex:1;">
+            <div class="field-label">Arc (°)</div>
+            <select id="spr-arc" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;">
+              <option value="90">90° — Quarter</option>
+              <option value="120">120° — Third</option>
+              <option value="180">180° — Half</option>
+              <option value="270">270° — Three-quarter</option>
+              <option value="360" selected>360° — Full</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="spr-arc-custom-wrap" style="display:none;margin-bottom:10px;">
+          <div class="field-label">Custom Arc (°)</div>
+          <input id="spr-arc-custom" type="number" min="1" max="360" placeholder="e.g. 210" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:13px;"/>
+        </div>
+
+        <div class="field-label">Notes <span style="color:var(--muted);font-size:9px;">(optional — e.g. "adjusted down", "blocked by cart path")</span></div>
+        <input id="spr-notes" type="text" placeholder="Optional notes…" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;margin-bottom:10px;"/>
+
+        <div class="field-label">Last Service Date <span style="color:var(--muted);font-size:9px;">(optional)</span></div>
+        <input id="spr-service" type="date" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;margin-bottom:12px;"/>
+
+        <button id="spr-gps-btn" onclick="captureSprinklerGPS()" style="width:100%;padding:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+          <span id="spr-gps-icon">📍</span><span id="spr-gps-txt">Capture GPS Location</span>
+        </button>
+        <div id="spr-coord-display" style="display:none;padding:6px 10px;background:#0a200a;border:1px solid var(--green2);border-radius:5px;font-size:10px;color:var(--green);margin-bottom:10px;"></div>
+
+        <button id="spr-save-btn" onclick="saveSprinkler()" style="width:100%;padding:12px;border-radius:7px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;opacity:.35;transition:opacity .15s;">
+          Save Sprinkler Head
+        </button>
+      </div>
+
+      <!-- Heads list for selected green -->
+      <div class="field-label" id="spr-list-label">Logged Heads</div>
+      <div id="spr-list"></div>
+    </div>
+
+    <!-- ── EXPORT ── -->
+    <div class="panel" id="panel-export">
+      <div class="field-label">Data Summary</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-val" id="exp-sessions">0</div><div class="stat-lbl">Sessions</div></div>
+        <div class="stat-card"><div class="stat-val" id="exp-pts">0</div><div class="stat-lbl">Total Pts</div></div>
+        <div class="stat-card"><div class="stat-val" id="exp-greens">0</div><div class="stat-lbl">Greens</div></div>
+      </div>
+      <button class="export-btn btn-csv" onclick="exportCSV()">⬇ Download CSV</button>
+      <button class="export-btn btn-json" onclick="exportJSON()">⬇ Backup JSON</button>
+      <div class="field-label">Restore from Backup</div>
+      <label style="display:block;padding:11px;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;text-align:center;cursor:pointer;font-size:11px;color:var(--muted);margin-bottom:12px;">
+        📂 Tap to import JSON backup
+        <input type="file" accept=".json" style="display:none" onchange="importJSON(event)"/>
+      </label>
+      <div class="install-card">
+        <h3>Install on iPhone</h3>
+        <ol>
+          <li>Open in <b>Safari</b></li>
+          <li>Tap the <b>Share ↑</b> button</li>
+          <li>Tap <b>"Add to Home Screen"</b></li>
+          <li>Works offline on the course ✓</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO VIEWER -->
+<div id="photo-modal">
+  <img id="photo-modal-img" src="" alt="Meter reading photo"/>
+  <div id="photo-modal-meta"></div>
+  <button id="photo-modal-close" onclick="closePhotoModal()">✕ Close</button>
+</div>
+
+<!-- EDIT READING MODAL -->
+<div id="edit-modal">
+  <div id="edit-box">
+    <h3>✏️ Edit Moisture Reading</h3>
+    <img id="edit-photo-preview" src="" alt="Meter photo"/>
+    <div id="edit-photo-placeholder">📷 No photo for this point</div>
+    <div class="edit-meta" id="edit-meta-text"></div>
+    <div class="field-label">Moisture Value (0–100%)</div>
+    <div class="edit-input-row">
+      <input id="edit-value-input" type="number" min="0" max="100" placeholder="—"/>
+    </div>
+    <div class="field-label">Quick-set</div>
+    <div class="edit-quick-btns">
+      <button class="eq-btn" onclick="setEditQuick(15)">15% Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(25)">25% Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(35)">35% Sl.Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(47)">47% Optimal</button>
+      <button class="eq-btn" onclick="setEditQuick(60)">60% Sl.Wet</button>
+      <button class="eq-btn" onclick="setEditQuick(70)">70% Wet</button>
+    </div>
+    <div class="edit-action-row">
+      <button id="edit-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button id="edit-save-btn" onclick="saveEdit()">Save Reading</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="modal-overlay">
+  <div id="modal-box">
+    <p>Delete this reading?</p>
+    <div class="mb-row">
+      <button id="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button id="modal-confirm" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════
+const STORAGE_KEY = 'golf_moisture_v6';
+function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{};}catch{return{};}}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(allData));}
+let allData = load();
+
+function sessionKey(g,d){return `${g}||${d}`;}
+function getPoints(g,d){return allData[sessionKey(g,d)]||[];}
+function curGreen(){return parseInt(greenSel.value);}
+function curDate(){return dateSel.value;}
+function curPoints(){return getPoints(curGreen(),curDate());}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function mColor(v){
+  if(v<20)return'#e05c3a';if(v<30)return'#e8923a';if(v<40)return'#d4c94a';
+  if(v<55)return'#5cb85c';if(v<65)return'#4ab3b8';if(v<75)return'#3a82c8';
+  return'#2a4fa8';
+}
+function mLabel(v){
+  if(v<20)return'Very Dry';if(v<30)return'Dry';if(v<40)return'Sl. Dry';
+  if(v<55)return'Optimal';if(v<65)return'Sl. Wet';if(v<75)return'Wet';
+  return'Very Wet';
+}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function calcStats(pts){
+  const valued=pts.filter(p=>p.value!==null&&p.value!==undefined);
+  if(!valued.length)return null;
+  const v=valued.map(p=>p.value);
+  return{avg:+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1),min:Math.min(...v),max:Math.max(...v),count:pts.length,valuedCount:valued.length};
+}
+let toastTimer;
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.display='block';
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.style.display='none';},2400);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT SELECTORS
+// ═══════════════════════════════════════════════════════════
+const greenSel=document.getElementById('green-sel');
+const dateSel=document.getElementById('date-sel');
+const GREEN_LIST=[...Array.from({length:18},(_,i)=>({value:String(i+1),label:`Green ${i+1}`})),
+  {value:'PG1',label:'Putting Green 1'},{value:'PG2',label:'Putting Green 2'},{value:'PG3',label:'Putting Green 3'}];
+GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;greenSel.appendChild(o);});
+dateSel.value=todayStr();
+
+const trendGreenSel=document.getElementById('trend-green-sel');
+GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;trendGreenSel.appendChild(o);});
+
+greenSel.addEventListener('change',onSessionChange);
+dateSel.addEventListener('change',onSessionChange);
+
+// ═══════════════════════════════════════════════════════════
+// WEATHER (Open-Meteo — no API key)
+// ═══════════════════════════════════════════════════════════
+let lastWeather = null;
+
+async function fetchWeather(lat,lng){
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`;
+    const r=await fetch(url);
+    const d=await r.json();
+    const c=d.current;
+    lastWeather={
+      temp:Math.round(c.temperature_2m),
+      humidity:c.relative_humidity_2m,
+      wind:Math.round(c.wind_speed_10m),
+      rain:c.precipitation,
+      ts:new Date().toISOString()
+    };
+    renderWeatherBar(lastWeather);
+    return lastWeather;
+  }catch(e){
+    document.getElementById('wx-content').textContent='⚠ Weather unavailable';
+    return null;
+  }
+}
+
+function renderWeatherBar(wx){
+  if(!wx){return;}
+  document.getElementById('wx-content').innerHTML=
+    `<span class="wx-item">🌡 ${wx.temp}°F</span><span class="wx-sep">·</span>`+
+    `<span class="wx-item">💧 ${wx.humidity}%</span><span class="wx-sep">·</span>`+
+    `<span class="wx-item">💨 ${wx.wind}mph</span><span class="wx-sep">·</span>`+
+    `<span class="wx-item">🌧 ${wx.rain}"</span>`;
+  document.getElementById('weather-bar').classList.remove('loading');
+}
+
+// Load weather for current session if stored
+function loadStoredWeather(){
+  const key=sessionKey(curGreen(),curDate());
+  const pts=allData[key]||[];
+  if(pts.length&&pts[0].weather){renderWeatherBar(pts[0].weather);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// LIVE CAMERA + SINGLE-TAP CAPTURE
+// ═══════════════════════════════════════════════════════════
+let liveStream=null;
+let lastGPSCoords=null;   // continuously updated background GPS
+let gpsWatchId=null;
+let capturing=false;
+let gridOpen=false;
+
+// Start live camera stream when capture tab opens
+async function startLiveCamera(){
+  const video=document.getElementById('live-video');
+  const fallback=document.getElementById('cam-fallback');
+  if(liveStream){video.srcObject=liveStream;return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{exact:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    liveStream=stream;
+    video.srcObject=stream;
+    video.style.display='block';
+    fallback.style.display='none';
+  }catch(err){
+    // Fallback: try without exact facing mode (works in some browsers)
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+      liveStream=stream;
+      video.srcObject=stream;
+      video.style.display='block';
+      fallback.style.display='none';
+    }catch(err2){
+      video.style.display='none';
+      fallback.style.display='flex';
+      showToast('Camera unavailable — check Safari permissions');
+    }
+  }
+}
+
+function stopLiveCamera(){
+  if(liveStream){liveStream.getTracks().forEach(t=>t.stop());liveStream=null;}
+  if(gpsWatchId!=null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;}
+}
+
+// Background GPS watch — always tracking, no tap needed
+function startGPSWatch(){
+  if(!navigator.geolocation||gpsWatchId!=null)return;
+  document.getElementById('vf-gps-status').textContent='📍 Acquiring…';
+  gpsWatchId=navigator.geolocation.watchPosition(
+    pos=>{
+      lastGPSCoords={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)};
+      const accColor=pos.coords.accuracy<8?'#5db85d':pos.coords.accuracy<15?'#d4c94a':'#e8923a';
+      document.getElementById('vf-gps-status').innerHTML=
+        `<span style="color:${accColor}">📍 ±${lastGPSCoords.acc}m</span>`;
+      // Fetch weather once on first fix
+      if(!lastWeather){
+        const key=sessionKey(curGreen(),curDate());
+        if(!(allData[key]&&allData[key].length)) fetchWeather(pos.coords.latitude,pos.coords.longitude);
+      }
+    },
+    err=>{document.getElementById('vf-gps-status').textContent='⚠ GPS error';},
+    {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
+  );
+}
+
+// Snap a frame from the live video
+function snapFrame(){
+  const video=document.getElementById('live-video');
+  const canvas=document.getElementById('snap-canvas');
+  canvas.width=video.videoWidth||640;
+  canvas.height=video.videoHeight||480;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/jpeg',0.82);
+}
+
+// Compress image to target width
+function compressImage(dataUrl,maxW,quality,cb){
+  const img=new Image();
+  img.onload=()=>{
+    const scale=Math.min(1,maxW/img.width);
+    const c=document.createElement('canvas');
+    c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    cb(c.toDataURL('image/jpeg',quality));
+  };
+  img.src=dataUrl;
+}
+
+// ── THE MAIN CAPTURE ACTION ──
+async function doCapture(){
+  if(capturing)return;
+  if(!lastGPSCoords){showToast('⚠ Waiting for GPS fix…');return;}
+  capturing=true;
+
+  const btn=document.getElementById('capture-btn');
+  btn.classList.add('capturing');
+
+  // 1. Flash effect
+  const flash=document.getElementById('flash-overlay');
+  flash.classList.add('flash');
+  setTimeout(()=>flash.classList.remove('flash'),200);
+
+  // 2. Snap frame from live video
+  const rawFrame=snapFrame();
+
+  // 3. Freeze frame display briefly
+  const frozen=document.getElementById('frozen-frame');
+  frozen.src=rawFrame;
+  frozen.style.display='block';
+
+  // 4. Compress photo
+  compressImage(rawFrame,900,0.80,async compressed=>{
+
+    // 5. Lock GPS coords at moment of capture
+    const coords={...lastGPSCoords};
+
+    // 6. Save data point (no moisture value yet — AI will fill later, or user edits in history)
+    const key=sessionKey(curGreen(),curDate());
+    const isFirst=!(allData[key]&&allData[key].length);
+    const pt={
+      id:Date.now(),
+      lat:coords.lat,lng:coords.lng,acc:coords.acc,
+      value:null,        // will be filled by AI or manual edit
+      ts:new Date().toISOString(),
+      photo:compressed,
+      weather:isFirst?(lastWeather||null):undefined,
+      needsValue:true    // flag for pending AI read
+    };
+    allData[key]=[...(allData[key]||[]),pt];
+    persist();
+
+    // 7. Fetch weather on first point
+    if(isFirst&&!lastWeather) await fetchWeather(coords.lat,coords.lng);
+
+    // 8. Update UI
+    updateLiveStrip();
+    updateHeaderStats();
+    checkAlerts();
+
+    const ptCount=(allData[key]||[]).length;
+    const fb=document.getElementById('capture-feedback');
+    fb.textContent=`✓ Point ${ptCount} captured  ·  ±${coords.acc}m`;
+    fb.style.color='var(--green)';
+
+    document.getElementById('vf-pt-count').textContent=ptCount+' pts';
+
+    // 9. Unfreeze after 1.2s
+    setTimeout(()=>{
+      frozen.style.display='none';
+      frozen.src='';
+      btn.classList.remove('capturing');
+      capturing=false;
+    },1200);
+  });
+}
+
+// Grid estimator toggle
+function toggleGrid(){
+  gridOpen=!gridOpen;
+  document.getElementById('grid-estimator').style.display=gridOpen?'block':'none';
+  document.getElementById('grid-arrow').textContent=gridOpen?'▴':'▾';
+}
+
+// Update the live stats strip in capture bottom
+function updateLiveStrip(){
+  const pts=curPoints().filter(p=>p.value!==null);
+  const allPts=curPoints();
+  document.getElementById('ls-cnt').textContent=allPts.length;
+  if(!pts.length){
+    document.getElementById('ls-avg').textContent='—';
+    document.getElementById('ls-last').textContent='—';
+    document.getElementById('ls-min').textContent='—';
+    return;
+  }
+  const vals=pts.map(p=>p.value);
+  const avg=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+  const last=pts[pts.length-1].value;
+  const min=Math.min(...vals);
+  const avgEl=document.getElementById('ls-avg');
+  avgEl.textContent=avg+'%';avgEl.style.color=mColor(parseFloat(avg));
+  const lastEl=document.getElementById('ls-last');
+  lastEl.textContent=last+'%';lastEl.style.color=mColor(last);
+  const minEl=document.getElementById('ls-min');
+  minEl.textContent=min+'%';minEl.style.color=mColor(min);
+}
+
+// Stub: resetCameraUI no longer needed but keep for compat
+function resetCameraUI(){}
+function clearPhoto(){}
+function openCamera(){}
+
+// Photo viewer modal
+function openPhotoModal(src, meta){
+  document.getElementById('photo-modal-img').src=src;
+  document.getElementById('photo-modal-meta').textContent=meta||'';
+  document.getElementById('photo-modal').classList.add('open');
+}
+function closePhotoModal(){
+  document.getElementById('photo-modal').classList.remove('open');
+  document.getElementById('photo-modal-img').src='';
+}
+
+// ═══════════════════════════════════════════════════════════
+// EDIT READING MODAL
+// ═══════════════════════════════════════════════════════════
+let editingId=null;
+
+function openEditModal(id){
+  // Find the point across all sessions
+  let pt=null;
+  Object.values(allData).forEach(pts=>{ const f=pts.find(p=>p.id===id); if(f)pt=f; });
+  if(!pt)return;
+  editingId=id;
+
+  // Photo
+  const prev=document.getElementById('edit-photo-preview');
+  const placeholder=document.getElementById('edit-photo-placeholder');
+  if(pt.photo){
+    prev.src=pt.photo;
+    prev.style.display='block';
+    placeholder.style.display='none';
+  } else {
+    prev.style.display='none';
+    placeholder.style.display='flex';
+  }
+
+  // Meta info
+  const ts=new Date(pt.ts);
+  document.getElementById('edit-meta-text').innerHTML=
+    `📍 ${pt.lat.toFixed(5)}, ${pt.lng.toFixed(5)}<br/>`+
+    `🕐 ${ts.toLocaleDateString()} ${ts.toLocaleTimeString()}<br/>`+
+    (pt.value!==null?`Current value: <b style="color:${mColor(pt.value)}">${pt.value}% — ${mLabel(pt.value)}</b>`:'<b style="color:#e8b83a">No value recorded yet</b>');
+
+  // Pre-fill current value
+  document.getElementById('edit-value-input').value = pt.value!==null ? pt.value : '';
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-value-input').focus(),150);
+}
+
+function setEditQuick(val){
+  document.getElementById('edit-value-input').value=val;
+}
+
+function closeEditModal(){
+  editingId=null;
+  document.getElementById('edit-modal').classList.remove('open');
+  document.getElementById('edit-photo-preview').src='';
+}
+
+function saveEdit(){
+  const raw=document.getElementById('edit-value-input').value;
+  const v=parseFloat(raw);
+  if(raw===''||isNaN(v)||v<0||v>100){
+    document.getElementById('edit-value-input').style.borderColor='#c04040';
+    setTimeout(()=>document.getElementById('edit-value-input').style.borderColor='',1000);
+    return;
+  }
+  Object.keys(allData).forEach(key=>{
+    const idx=allData[key].findIndex(p=>p.id===editingId);
+    if(idx>=0){
+      allData[key][idx].value=v;
+      allData[key][idx].needsValue=false;
+      persist();
+    }
+  });
+  closeEditModal();
+  updateLiveStrip();
+  updateCaptureStats();
+  updateHeaderStats();
+  checkAlerts();
+  if(currentTab==='map')refreshMap();
+  if(currentTab==='history')renderHistory();
+  showToast(`Updated to ${v}% — ${mLabel(v)}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRID ESTIMATOR
+// ═══════════════════════════════════════════════════════════
+function calcGrid(){
+  const sqft=parseFloat(document.getElementById('sqft-input').value);
+  const res=document.getElementById('ge-result');
+  if(!sqft||sqft<100){res.style.display='none';return;}
+  // 3-pace interval ≈ 7.5 ft, grid spacing
+  const pace3=7.5, pace2=5;
+  const pts3=Math.round(sqft/(pace3*pace3));
+  const pts2=Math.round(sqft/(pace2*pace2));
+  const time3=Math.ceil(pts3*0.4); // ~24 sec/point
+  const time2=Math.ceil(pts2*0.4);
+  res.style.display='block';
+  res.innerHTML=
+    `At <b>3-pace (~7.5 ft)</b> intervals: <b>~${pts3} points</b> · ~${time3} min<br/>`+
+    `At <b>2-pace (~5 ft)</b> intervals: <b>~${pts2} points</b> · ~${time2} min<br/>`+
+    `<span style="color:var(--muted);font-size:9px;">Walk in parallel rows across the green</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRY SPOT ALERTS
+// ═══════════════════════════════════════════════════════════
+function checkAlerts(){
+  const bar=document.getElementById('alerts-bar');
+  const alerts=[];
+  for(let g=1;g<=18;g++){
+    const dates=Object.keys(allData)
+      .filter(k=>k.startsWith(`${g}||`)&&allData[k].length>0)
+      .map(k=>k.split('||')[1]).sort();
+    if(dates.length<2)continue;
+    const latest=dates[dates.length-1];
+    const prev=dates[dates.length-2];
+    const s1=calcStats(getPoints(g,latest));
+    const s2=calcStats(getPoints(g,prev));
+    if(!s1||!s2)continue;
+    const drop=s2.avg-s1.avg;
+    if(drop>=10){
+      alerts.push(`Green ${g}: avg dropped ${drop.toFixed(1)}% since ${prev} → now ${s1.avg}% (${mLabel(s1.avg)})`);
+    }
+    if(s1.min<25){
+      alerts.push(`Green ${g}: dry spot at ${s1.min}% — hand-water recommended`);
+    }
+  }
+  if(alerts.length){
+    bar.style.display='block';
+    bar.innerHTML=alerts.map(a=>`<div class="alert-item">⚠ ${a}</div>`).join('');
+    // Badge on history tab
+    const hTab=document.querySelector('[data-tab="history"]');
+    if(!hTab.querySelector('.alert-badge')){
+      const b=document.createElement('span');b.className='alert-badge';b.textContent=alerts.length;
+      hTab.appendChild(b);
+    }
+  } else {
+    bar.style.display='none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CAPTURE STATS
+// ═══════════════════════════════════════════════════════════
+function updateCaptureStats(){
+  const pts=curPoints();
+  const s=calcStats(pts);
+  const panel=document.getElementById('current-stats');
+  if(!s){panel.style.display='none';return;}
+  panel.style.display='block';
+  document.getElementById('stats-label').textContent=`Green ${curGreen()} · ${curDate()}`;
+  ['avg','min','max'].forEach(k=>{
+    const el=document.getElementById(`st-${k}`);
+    el.textContent=s[k]+'%';
+    el.style.color=mColor(parseFloat(s[k]));
+  });
+  document.getElementById('st-cnt').textContent=s.count;
+  const rr=document.getElementById('recent-readings');
+  rr.innerHTML='';
+  [...pts].reverse().slice(0,5).forEach(p=>{
+    const d=document.createElement('div');d.className='reading-row';
+    const hasVal=p.value!==null;
+    const valColor=hasVal?mColor(p.value):'#e8b83a';
+    const valText=hasVal?`${p.value}%`:'?%';
+    const labelText=hasVal?mLabel(p.value):'Tap ✏ to enter';
+    const thumbHtml=p.photo
+      ?`<img class="r-thumb" src="${p.photo}" onclick="openPhotoModal('${p.photo}','${valText} · ${new Date(p.ts).toLocaleTimeString()}')" alt="meter"/>`
+      :'';
+    d.innerHTML=
+      `<div class="r-dot" style="background:${valColor}"></div>`+
+      `<div class="r-val" style="color:${valColor}">${valText}</div>`+
+      `<div class="r-meta">${labelText}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>`+
+      thumbHtml+
+      `<button style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;flex-shrink:0;" onclick="openEditModal(${p.id})">✏</button>`+
+      `<button class="r-del" onclick="promptDelete(${p.id})">✕</button>`;
+    rr.appendChild(d);
+  });
+}
+
+function updateHeaderStats(){
+  const all=Object.values(allData).reduce((a,b)=>a+b.length,0);
+  const sess=Object.keys(allData).filter(k=>allData[k].length>0).length;
+  document.getElementById('hdr-pts').textContent=all+' pts';
+  document.getElementById('hdr-sessions').textContent=sess+' sessions';
+}
+
+function onSessionChange(){
+  updateCaptureStats();
+  loadStoredWeather();
+  if(currentTab==='map')refreshMap();
+  if(currentTab==='trend')renderTrend();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════
+let currentTab='capture';
+let mapInitialized=false;
+
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  ['capture','map','trend','history','export'].forEach(t=>{
+    const el=document.getElementById(`panel-${t}`);
+    el.classList.remove('active');
+    el.style.display='none';
+  });
+  const el=document.getElementById(`panel-${tab}`);
+  el.classList.add('active');
+
+  if(tab==='capture'){
+    el.style.display='flex';
+    startLiveCamera();
+    startGPSWatch();
+    updateLiveStrip();
+    const pts=curPoints();
+    document.getElementById('vf-pt-count').textContent=pts.length+' pts';
+  } else {
+    // Stop camera when leaving capture tab to save battery
+    stopLiveCamera();
+    if(tab==='map'){
+      el.style.display='flex';
+      if(!mapInitialized)initMap();else refreshMap();
+    } else if(tab==='trend'){
+      el.style.display='block';
+      renderTrend();
+    } else {
+      el.style.display='block';
+      if(tab==='history')renderHistory();
+      if(tab==='export')renderExport();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEAFLET MAP
+// ═══════════════════════════════════════════════════════════
+let map,heatLayer,pinsLayer,satLayer,streetLayer;
+let showHeat=true,showPins=false,isSat=true;
+
+function initMap(){
+  mapInitialized=true;
+  map=L.map('leaflet-map',{zoomControl:true,attributionControl:false}).setView([40,-95],4);
+  streetLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:22});
+  satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22});
+  satLayer.addTo(map);
+  pinsLayer=L.layerGroup().addTo(map);
+  refreshMap();
+}
+
+function refreshMap(){
+  if(!map)return;
+  const pts=curPoints();
+  if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
+  pinsLayer.clearLayers();
+  if(!pts.length)return;
+  const bounds=L.latLngBounds(pts.map(p=>[p.lat,p.lng]));
+  map.fitBounds(bounds,{padding:[40,40],maxZoom:20});
+  heatLayer=L.heatLayer(pts.filter(p=>p.value!==null).map(p=>[p.lat,p.lng,p.value/100]),{
+    radius:18,blur:22,maxZoom:21,max:1.0,
+    gradient:{'0.0':'#2a4fa8','0.2':'#3a82c8','0.35':'#4ab3b8','0.45':'#5cb85c','0.55':'#d4c94a','0.7':'#e8923a','1.0':'#e05c3a'}
+  });
+  if(showHeat)heatLayer.addTo(map);
+  pts.forEach(p=>{
+    const c=p.value!==null?mColor(p.value):'#555';
+    const pinLabel=p.value!==null?p.value:(p.photo?'📷':'?');
+    const icon=L.divIcon({className:'',
+      html:`<div style="width:28px;height:28px;border-radius:50%;background:${c};border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;font-family:monospace;box-shadow:0 1px 4px rgba(0,0,0,.5);">${pinLabel}</div>`,
+      iconSize:[28,28],iconAnchor:[14,14]});
+    const m=L.marker([p.lat,p.lng],{icon});
+    const valStr=p.value!==null?`${p.value}% — ${mLabel(p.value)}`:'📷 Photo only — value pending';
+    const photoBtn=p.photo?`<br/><button onclick="openPhotoModal('${p.photo}','${p.value!==null?p.value+'%':'?'} · Green ${curGreen()} · ${new Date(p.ts).toLocaleTimeString()}')" style="margin-top:5px;font-size:10px;color:#4ab3b8;background:none;border:1px solid #4ab3b8;border-radius:4px;padding:2px 7px;cursor:pointer;">📷 View Photo</button>`:'';
+    m.bindPopup(`<div style="font-family:monospace;font-size:12px;min-width:150px;"><b style="color:${c};font-size:13px;">${valStr}</b><br/><span style="color:#666;font-size:9px;">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span><br/><span style="color:#888;font-size:9px;">${new Date(p.ts).toLocaleTimeString()}</span>${photoBtn}<br/><div style="display:flex;gap:5px;margin-top:5px;"><button onclick="openEditModal(${p.id})" style="flex:1;font-size:10px;color:#5db85d;background:none;border:1px solid #3a7a3a;border-radius:4px;padding:3px 0;cursor:pointer;">✏ Edit</button><button onclick="promptDelete(${p.id})" style="flex:1;font-size:10px;color:#c04040;background:none;border:1px solid #c04040;border-radius:4px;padding:3px 0;cursor:pointer;">✕ Del</button></div></div>`);
+    pinsLayer.addLayer(m);
+    if(!showPins)return;
+  });
+  if(showPins)pinsLayer.addTo(map);
+  setTimeout(()=>map.invalidateSize(),100);
+}
+
+function toggleLayer(which){
+  if(!map)return;
+  if(which==='heat'){
+    showHeat=!showHeat;
+    document.getElementById('btn-heat').classList.toggle('active-ctrl',showHeat);
+    if(showHeat&&heatLayer)heatLayer.addTo(map);else if(heatLayer)map.removeLayer(heatLayer);
+  }
+  if(which==='pins'){
+    showPins=!showPins;
+    document.getElementById('btn-pins').classList.toggle('active-ctrl',showPins);
+    if(showPins)pinsLayer.addTo(map);else map.removeLayer(pinsLayer);
+  }
+}
+function toggleSat(){
+  isSat=!isSat;
+  document.getElementById('btn-sat').classList.toggle('active-ctrl',isSat);
+  if(isSat){map.removeLayer(streetLayer);satLayer.addTo(map);}
+  else{map.removeLayer(satLayer);streetLayer.addTo(map);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREND CHARTS (native Canvas)
+// ═══════════════════════════════════════════════════════════
+function renderTrend(){
+  const g=parseInt(trendGreenSel.value);
+  const keys=Object.keys(allData)
+    .filter(k=>k.startsWith(`${g}||`)&&allData[k].length>0)
+    .sort();
+  const emptyEl=document.getElementById('trend-empty');
+  const wrapEl=document.getElementById('trend-canvas-wrap');
+  const wxWrapEl=document.getElementById('weather-chart-wrap');
+
+  if(keys.length<1){
+    emptyEl.style.display='block';
+    wrapEl.style.display='none';
+    wxWrapEl.style.display='none';
+    return;
+  }
+  emptyEl.style.display='none';
+  wrapEl.style.display='block';
+  wxWrapEl.style.display='block';
+
+  const dates=keys.map(k=>k.split('||')[1]);
+  const avgs=keys.map(k=>calcStats(allData[k]).avg);
+  const mins=keys.map(k=>calcStats(allData[k]).min);
+  const maxs=keys.map(k=>calcStats(allData[k]).max);
+  const wxData=keys.map(k=>{
+    const pts=allData[k];
+    const wx=pts.find(p=>p.weather)?.weather||null;
+    return wx;
+  });
+
+  drawMoistureTrend('trend-canvas',dates,avgs,mins,maxs);
+  drawWeatherChart('weather-canvas',dates,wxData);
+}
+
+function drawMoistureTrend(canvasId,dates,avgs,mins,maxs){
+  const canvas=document.getElementById(canvasId);
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth-20;
+  canvas.height=180;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const PAD={top:16,right:12,bottom:36,left:36};
+  const cW=W-PAD.left-PAD.right;
+  const cH=H-PAD.top-PAD.bottom;
+  ctx.clearRect(0,0,W,H);
+
+  const allVals=[...avgs,...mins,...maxs,0,100];
+  const dataMin=Math.max(0,Math.min(...allVals)-5);
+  const dataMax=Math.min(100,Math.max(...allVals)+5);
+
+  function xp(i){return PAD.left+(i/(Math.max(dates.length-1,1)))*cW;}
+  function yp(v){return PAD.top+(1-(v-dataMin)/(dataMax-dataMin))*cH;}
+
+  // Grid lines
+  ctx.strokeStyle='#1c3a1c';ctx.lineWidth=1;
+  [25,40,55,75].forEach(v=>{
+    if(v<dataMin||v>dataMax)return;
+    ctx.beginPath();ctx.moveTo(PAD.left,yp(v));ctx.lineTo(PAD.left+cW,yp(v));ctx.stroke();
+    ctx.fillStyle='#3a5a3a';ctx.font='9px monospace';ctx.textAlign='right';
+    ctx.fillText(v+'%',PAD.left-4,yp(v)+3);
+  });
+
+  // Dry threshold line
+  if(25>=dataMin&&25<=dataMax){
+    ctx.strokeStyle='#6a2a0a';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(PAD.left,yp(25));ctx.lineTo(PAD.left+cW,yp(25));ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if(dates.length<2){
+    // Single point — just draw a dot
+    ctx.beginPath();ctx.arc(xp(0),yp(avgs[0]),5,0,Math.PI*2);
+    ctx.fillStyle='#5cb85c';ctx.fill();
+    ctx.fillStyle='#7a9a7a';ctx.font='9px monospace';ctx.textAlign='center';
+    ctx.fillText(dates[0],xp(0),H-PAD.bottom+14);
+    return;
+  }
+
+  // Min-Max band
+  ctx.beginPath();
+  ctx.moveTo(xp(0),yp(maxs[0]));
+  maxs.forEach((v,i)=>ctx.lineTo(xp(i),yp(v)));
+  [...mins].reverse().forEach((v,i)=>ctx.lineTo(xp(mins.length-1-i),yp(v)));
+  ctx.closePath();
+  ctx.fillStyle='rgba(58,130,200,0.15)';ctx.fill();
+
+  // Min line
+  ctx.beginPath();ctx.strokeStyle='rgba(58,130,200,0.4)';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+  mins.forEach((v,i)=>i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v)));
+  ctx.stroke();ctx.setLineDash([]);
+
+  // Max line
+  ctx.beginPath();ctx.strokeStyle='rgba(58,130,200,0.4)';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+  maxs.forEach((v,i)=>i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v)));
+  ctx.stroke();ctx.setLineDash([]);
+
+  // Avg line
+  ctx.beginPath();ctx.strokeStyle='#5cb85c';ctx.lineWidth=2.5;
+  avgs.forEach((v,i)=>i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v)));
+  ctx.stroke();
+
+  // Avg dots + labels
+  avgs.forEach((v,i)=>{
+    ctx.beginPath();ctx.arc(xp(i),yp(v),4,0,Math.PI*2);
+    ctx.fillStyle=mColor(v);ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle='#cce0cc';ctx.font='bold 9px monospace';ctx.textAlign='center';
+    ctx.fillText(v+'%',xp(i),yp(v)-8);
+  });
+
+  // X-axis date labels (show every nth if crowded)
+  const step=Math.ceil(dates.length/6);
+  ctx.fillStyle='#3d5e3d';ctx.font='9px monospace';ctx.textAlign='center';
+  dates.forEach((d,i)=>{
+    if(i%step===0||i===dates.length-1){
+      const label=d.slice(5); // MM-DD
+      ctx.fillText(label,xp(i),H-PAD.bottom+14);
+    }
+  });
+}
+
+function drawWeatherChart(canvasId,dates,wxData){
+  const canvas=document.getElementById(canvasId);
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth-20;
+  canvas.height=120;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const PAD={top:12,right:12,bottom:28,left:36};
+  const cW=W-PAD.left-PAD.right;
+  const cH=H-PAD.top-PAD.bottom;
+  ctx.clearRect(0,0,W,H);
+
+  const hasWx=wxData.some(w=>w!==null);
+  if(!hasWx){
+    ctx.fillStyle='#3d5e3d';ctx.font='11px monospace';ctx.textAlign='center';
+    ctx.fillText('Weather data captured on next survey',W/2,H/2);
+    return;
+  }
+
+  const temps=wxData.map(w=>w?w.temp:null);
+  const hums=wxData.map(w=>w?w.humidity:null);
+  const rains=wxData.map(w=>w?w.rain:null);
+  const validTemps=temps.filter(v=>v!==null);
+  const tMin=Math.min(...validTemps)-5,tMax=Math.max(...validTemps)+5;
+
+  function xp(i){return PAD.left+(i/(Math.max(dates.length-1,1)))*cW;}
+  function yTemp(v){return PAD.top+(1-(v-tMin)/(tMax-tMin))*cH;}
+  function yHum(v){return PAD.top+(1-v/100)*cH;}
+
+  // Grid
+  ctx.strokeStyle='#1c3a1c';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(PAD.left,PAD.top+cH/2);ctx.lineTo(PAD.left+cW,PAD.top+cH/2);ctx.stroke();
+
+  function drawLine(data,color,yFn){
+    ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.8;
+    let started=false;
+    data.forEach((v,i)=>{
+      if(v===null)return;
+      if(!started){ctx.moveTo(xp(i),yFn(v));started=true;}
+      else ctx.lineTo(xp(i),yFn(v));
+    });
+    ctx.stroke();
+    data.forEach((v,i)=>{
+      if(v===null)return;
+      ctx.beginPath();ctx.arc(xp(i),yFn(v),3,0,Math.PI*2);
+      ctx.fillStyle=color;ctx.fill();
+    });
+  }
+
+  drawLine(temps,'#e8b83a',yTemp);
+  drawLine(hums,'#3a82c8',yHum);
+
+  // Rain bars
+  const maxRain=Math.max(...rains.filter(v=>v!==null),0.1);
+  rains.forEach((v,i)=>{
+    if(v===null||v===0)return;
+    const bH=Math.max(2,(v/maxRain)*(cH*0.4));
+    ctx.fillStyle='rgba(122,74,184,0.7)';
+    ctx.fillRect(xp(i)-4,PAD.top+cH-bH,8,bH);
+  });
+
+  // Y labels
+  ctx.fillStyle='#e8b83a';ctx.font='9px monospace';ctx.textAlign='right';
+  ctx.fillText(Math.round(tMax)+'°',PAD.left-3,PAD.top+8);
+  ctx.fillText(Math.round(tMin)+'°',PAD.left-3,PAD.top+cH);
+
+  // X labels
+  const step=Math.ceil(dates.length/6);
+  ctx.fillStyle='#3d5e3d';ctx.font='9px monospace';ctx.textAlign='center';
+  dates.forEach((d,i)=>{
+    if(i%step===0||i===dates.length-1) ctx.fillText(d.slice(5),xp(i),H-PAD.bottom+14);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════════════════
+function renderHistory(){
+  const el=document.getElementById('history-content');
+  const keys=Object.keys(allData).filter(k=>allData[k].length>0).sort().reverse();
+  if(!keys.length){el.innerHTML='<div class="empty-state">No data yet.<br/>Head to Capture to start mapping.</div>';return;}
+  el.innerHTML='';
+
+  keys.forEach(key=>{
+    const [g,...dp]=key.split('||');const date=dp.join('||');
+    const pts=allData[key];
+    const wx=pts.find(p=>p.weather)?.weather;
+    const valuedPts=pts.filter(p=>p.value!==null);
+    const pendingPts=pts.filter(p=>p.needsValue||p.value===null);
+    const sv=valuedPts.length?calcStats(valuedPts):null;
+    const photoPts=pts.filter(p=>p.photo);
+
+    const card=document.createElement('div');
+    card.className='session-card';
+    card.style.cursor='default';
+
+    // Photo strip
+    const photoStrip=photoPts.length
+      ?`<div style="display:flex;gap:5px;margin-top:7px;overflow-x:auto;padding-bottom:2px;">`+
+        photoPts.slice(0,6).map(p=>{
+          const vl=p.value!==null?`${p.value}%`:'?%';
+          return `<div style="position:relative;flex-shrink:0;" onclick="event.stopPropagation();">`+
+            `<img src="${p.photo}" style="width:48px;height:48px;border-radius:4px;object-fit:cover;border:1px solid ${p.value===null?'#6a4a00':'#254545'};cursor:pointer;display:block;" onclick="openPhotoModal('${p.photo}','${vl} · Green ${g} · ${date}')"/>`+
+            `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);text-align:center;font-size:9px;color:${p.value===null?'#e8b83a':'#5db85d'};border-radius:0 0 4px 4px;padding:1px 0;">${vl}</div>`+
+            `</div>`;
+        }).join('')+
+        (photoPts.length>6?`<div style="width:48px;height:48px;border-radius:4px;background:#0d2020;border:1px solid #254545;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ab3b8;flex-shrink:0;">+${photoPts.length-6}</div>`:'')+
+        `</div>`:'' ;
+
+    const pendingBadge=pendingPts.length
+      ?`<span style="background:#3a2000;color:#e8b83a;border:1px solid #6a4000;border-radius:4px;font-size:9px;padding:1px 6px;margin-left:6px;">⏳ ${pendingPts.length} pending</span>`:'';
+
+    card.innerHTML=
+      `<div class="sc-head" style="cursor:pointer;" onclick="toggleSessionExpand(this)">
+        <span class="sc-green">Green ${g} ${pendingBadge}</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <span class="sc-date">${date} · ${pts.length} pts${photoPts.length?` · 📷${photoPts.length}`:''}</span>
+          <span class="expand-arrow" style="color:var(--muted);font-size:11px;">▾</span>
+        </span>
+      </div>`+
+      (sv
+        ?`<div class="sc-stats"><span>Avg <b style="color:${mColor(sv.avg)}">${sv.avg}%</b></span><span>Min <b style="color:${mColor(sv.min)}">${sv.min}%</b></span><span>Max <b style="color:${mColor(sv.max)}">${sv.max}%</b></span></div>`
+        :`<div class="sc-stats" style="color:var(--muted);">No values recorded yet</div>`)+
+      (wx?`<div class="sc-wx">🌡${wx.temp}°F · 💧${wx.humidity}% · 💨${wx.wind}mph · 🌧${wx.rain}"</div>`:'')+
+      photoStrip+
+      // Map button
+      `<div style="display:flex;gap:7px;margin-top:8px;" onclick="event.stopPropagation();">
+        <button onclick="greenSel.value='${g}';dateSel.value='${date}';onSessionChange();switchTab('map');" style="flex:1;padding:7px;background:var(--bg);border:1px solid var(--border2);color:var(--text2);border-radius:5px;font-family:var(--font);font-size:11px;cursor:pointer;">🗺 View on Map</button>
+      </div>`+
+      // Expandable points list
+      `<div class="session-points" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">`+
+      pts.map(p=>{
+        const hasVal=p.value!==null;
+        const vc=hasVal?mColor(p.value):'#e8b83a';
+        const vt=hasVal?`${p.value}%`:'?%';
+        const ts=new Date(p.ts).toLocaleTimeString();
+        const thumbHtml=p.photo?`<img src="${p.photo}" style="width:32px;height:32px;border-radius:3px;object-fit:cover;cursor:pointer;border:1px solid var(--border);" onclick="openPhotoModal('${p.photo}','${vt}')"/>` :'';
+        return `<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div style="width:8px;height:8px;border-radius:50%;background:${vc};flex-shrink:0;"></div>
+          <div style="font-size:13px;font-weight:700;color:${vc};min-width:34px;">${vt}</div>
+          <div style="flex:1;font-size:9px;color:var(--muted);line-height:1.6;">${ts}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>
+          ${thumbHtml}
+          <button onclick="openEditModal(${p.id})" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;flex-shrink:0;">✏</button>
+          <button onclick="promptDelete(${p.id})" style="background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0;">✕</button>
+        </div>`;
+      }).join('')+
+      `</div>`;
+
+    el.appendChild(card);
+  });
+}
+
+function toggleSessionExpand(headerEl){
+  const card=headerEl.closest('.session-card');
+  const pointsList=card.querySelector('.session-points');
+  const arrow=headerEl.querySelector('.expand-arrow');
+  const open=pointsList.style.display==='none';
+  pointsList.style.display=open?'block':'none';
+  arrow.textContent=open?'▴':'▾';
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════
+function renderExport(){
+  const keys=Object.keys(allData).filter(k=>allData[k].length>0);
+  const totalPts=keys.reduce((a,k)=>a+allData[k].length,0);
+  const greens=new Set(keys.map(k=>k.split('||')[0])).size;
+  document.getElementById('exp-sessions').textContent=keys.length;
+  document.getElementById('exp-pts').textContent=totalPts;
+  document.getElementById('exp-greens').textContent=greens;
+}
+
+function exportCSV(){
+  const rows=[['Date','Green','Latitude','Longitude','Moisture%','Category','Temp_F','Humidity%','Wind_mph','Rain_in','Timestamp']];
+  Object.entries(allData).forEach(([key,pts])=>{
+    const [g,...dp]=key.split('||');const date=dp.join('||');
+    const wx=pts.find(p=>p.weather)?.weather;
+    pts.forEach(p=>rows.push([
+      date,g,p.lat.toFixed(7),p.lng.toFixed(7),p.value,mLabel(p.value),
+      wx?wx.temp:'',wx?wx.humidity:'',wx?wx.wind:'',wx?wx.rain:'',p.ts
+    ]));
+  });
+  dlFile('moisture_'+todayStr()+'.csv',rows.map(r=>r.join(',')).join('\n'),'text/csv');
+  showToast('CSV downloaded');
+}
+function exportJSON(){dlFile('moisture_backup_'+todayStr()+'.json',JSON.stringify(allData,null,2),'application/json');showToast('JSON backup downloaded');}
+function importJSON(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{allData={...allData,...JSON.parse(ev.target.result)};persist();updateHeaderStats();renderExport();checkAlerts();showToast('Backup restored ✓');}
+    catch{showToast('Invalid file');}
+  };reader.readAsText(file);
+}
+function dlFile(name,content,type){
+  const b=new Blob([content],{type});const url=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DELETE
+// ═══════════════════════════════════════════════════════════
+let deleteId=null;
+function promptDelete(id){deleteId=id;document.getElementById('modal-overlay').classList.add('open');}
+function closeModal(){deleteId=null;document.getElementById('modal-overlay').classList.remove('open');}
+function confirmDelete(){
+  if(!deleteId)return;
+  const key=sessionKey(curGreen(),curDate());
+  allData[key]=(allData[key]||[]).filter(p=>p.id!==deleteId);
+  if(!allData[key].length)delete allData[key];
+  persist();closeModal();updateCaptureStats();updateHeaderStats();checkAlerts();
+  if(currentTab==='map')refreshMap();
+  showToast('Reading deleted');
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+updateCaptureStats();
+updateHeaderStats();
+checkAlerts();
+loadStoredWeather();
+updateLiveStrip();
+// Auto-start camera + GPS on load since capture is default tab
+startLiveCamera();
+startGPSWatch();
+</script>
+</body>
+</html>
