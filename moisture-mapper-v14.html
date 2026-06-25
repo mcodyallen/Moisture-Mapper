@@ -1,0 +1,3739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>⛳ Turf Intelligence Platform v14</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080f08;--bg2:#0c180c;--bg3:#111f11;--bg4:#162216;
+  --border:#1c3a1c;--border2:#254525;
+  --green:#5db85d;--green2:#3a7a3a;--green3:#2a5a2a;
+  --muted:#3d5e3d;--text:#cce0cc;--text2:#7a9a7a;
+  --dry:#e05c3a;--opt:#5cb85c;--wet:#3a82c8;
+  --warn:#e8b83a;--alert:#e05c3a;
+  --font:'SF Mono','Fira Mono','Consolas',monospace;
+  --sun-transition: background .2s, color .2s, border-color .2s;
+}
+
+/* ── SUNLIGHT MODE ── */
+body.sunlight{
+  --bg:#FFFFFF;--bg2:#F0F4F0;--bg3:#E4EBE4;--bg4:#D8E4D8;
+  --border:#AABFAA;--border2:#88AA88;
+  --green:#1B5E20;--green2:#2E7D32;--green3:#388E3C;
+  --muted:#557755;--text:#111811;--text2:#334433;
+  --dry:#C62828;--opt:#2E7D32;--wet:#1565C0;
+  --warn:#E65100;--alert:#C62828;
+}
+body.sunlight #header{background:#1B5E20;}
+body.sunlight #header h1{color:#FFFFFF;}
+body.sunlight #header p{color:#A5D6A7;}
+body.sunlight #hdr-right{color:#A5D6A7;}
+body.sunlight .tab-btn{color:#557755;}
+body.sunlight .tab-btn.active{color:#1B5E20;border-bottom-color:#1B5E20;}
+body.sunlight #viewfinder-wrap{border:2px solid #1B5E20;}
+body.sunlight #capture-btn{border-color:#1B5E20;}
+body.sunlight #cap-btn-inner{background:#2E7D32;}
+body.sunlight .ls-val{color:#1B5E20;}
+body.sunlight #live-video{filter:brightness(1.05) contrast(1.05);}
+
+/* Sunlight toggle button */
+#sunlight-btn{background:none;border:none;font-size:20px;cursor:pointer;padding:3px 6px;line-height:1;transition:transform .15s;}
+#sunlight-btn:active{transform:scale(.85);}
+
+/* ── WAKE LOCK indicator ── */
+#wakelock-indicator{width:7px;height:7px;border-radius:50%;background:#3d5e3d;display:inline-block;margin-right:4px;vertical-align:middle;}
+#wakelock-indicator.active{background:var(--green);}
+
+/* ── DASHBOARD TAB ── */
+#panel-dashboard{display:none;padding:12px 14px;overflow-y:auto;}
+#panel-dashboard.active{display:block;}
+.dashboard-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px;}
+.green-tile{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 7px;cursor:pointer;transition:border-color .15s,transform .1s;position:relative;}
+.green-tile:active{transform:scale(.96);}
+.green-tile.surveyed-today{border-color:var(--green2);}
+.green-tile.needs-water{border-color:var(--dry);}
+.green-tile.alert-tile{border-color:var(--warn);}
+.gt-name{font-size:10px;color:var(--text2);font-weight:700;letter-spacing:.5px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gt-val{font-size:20px;font-weight:700;line-height:1;}
+.gt-lbl{font-size:8px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-top:2px;}
+.gt-date{font-size:8px;color:var(--muted);margin-top:4px;}
+.gt-badge{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;}
+.dashboard-summary{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;}
+.ds-row{display:flex;gap:0;margin-bottom:0;}
+.ds-item{flex:1;text-align:center;padding:4px 0;}
+.ds-val{font-size:18px;font-weight:700;color:var(--green);}
+.ds-lbl{font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;}
+.ds-divider{width:1px;background:var(--border);margin:4px 0;}
+.progress-wrap{margin-top:8px;}
+.progress-bar-bg{background:var(--bg);border-radius:4px;height:6px;overflow:hidden;margin-top:4px;}
+.progress-bar-fill{height:100%;background:var(--green);border-radius:4px;transition:width .4s;}
+.progress-label{font-size:10px;color:var(--text2);display:flex;justify-content:space-between;}
+
+/* ── UNDO BUTTON ── */
+#undo-btn{display:none;width:100%;padding:10px;border-radius:7px;border:1px solid var(--warn);background:transparent;color:var(--warn);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;transition:opacity .3s;}
+#undo-btn.visible{display:block;}
+
+/* ── GREEN BOUNDARY DRAWING ── */
+#boundary-controls{display:none;position:absolute;bottom:140px;left:10px;z-index:1001;background:rgba(8,15,8,.92);border:1px solid var(--green2);border-radius:8px;padding:10px 12px;backdrop-filter:blur(4px);}
+#boundary-controls.active{display:block;}
+.bnd-title{font-size:10px;color:var(--green);font-family:var(--font);font-weight:700;letter-spacing:1px;margin-bottom:6px;}
+.bnd-pts{font-size:10px;color:var(--text2);font-family:var(--font);margin-bottom:8px;}
+.bnd-btn{display:block;width:100%;padding:6px 10px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:var(--font);font-size:11px;cursor:pointer;margin-bottom:5px;font-weight:700;}
+.bnd-btn.primary{background:var(--green3);border-color:var(--green2);color:#fff;}
+.bnd-btn.danger{border-color:#6a2a1a;color:var(--dry);}
+#btn-draw-boundary{white-space:nowrap;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;-webkit-tap-highlight-color:transparent;}
+#app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;position:relative;}
+
+/* HEADER */
+#header{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 14px 7px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#header h1{font-size:13px;font-weight:700;color:var(--green);letter-spacing:1.5px;text-transform:uppercase;}
+#header p{font-size:10px;color:var(--muted);margin-top:1px;}
+#hdr-right{text-align:right;font-size:10px;color:var(--muted);line-height:1.6;}
+
+/* SESSION BAR */
+#session-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:7px 12px;display:flex;gap:7px;align-items:center;flex-shrink:0;}
+#session-bar select,#session-bar input[type=date]{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--font);font-size:12px;flex:1;}
+
+/* WEATHER BAR */
+#weather-bar{background:var(--bg3);border-bottom:1px solid var(--border);padding:5px 12px;display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text2);flex-shrink:0;min-height:28px;}
+#weather-bar.loading{color:var(--muted);}
+.wx-item{display:flex;align-items:center;gap:3px;}
+.wx-sep{color:var(--border2);margin:0 2px;}
+
+/* ALERTS BAR */
+#alerts-bar{display:none;background:#1a0e00;border-bottom:1px solid #4a2a00;padding:6px 12px;flex-shrink:0;}
+.alert-item{font-size:10px;color:#e8a050;display:flex;align-items:center;gap:5px;padding:2px 0;}
+
+/* TABS */
+#tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;}
+.tab-btn{flex:1;padding:8px 0;font-family:var(--font);font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}
+.tab-btn .icon{font-size:15px;}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green);}
+
+/* CONTENT */
+#content{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+.panel{display:none;flex:1;overflow-y:auto;padding:12px 14px;}
+.panel.active{display:block;}
+#panel-map{display:none;flex:1;flex-direction:column;padding:0;}
+#panel-map.active{display:flex;}
+#panel-trend{display:none;}
+#panel-trend.active{display:block;overflow-y:auto;flex:1;padding:12px 14px;}
+
+/* MAP */
+#map-container{flex:1;position:relative;}
+#leaflet-map{height:100%;width:100%;}
+#map-controls{position:absolute;bottom:12px;left:10px;z-index:1000;display:flex;flex-direction:column;gap:5px;}
+.map-ctrl-btn{background:rgba(8,15,8,.9);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--font);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:.5px;white-space:nowrap;backdrop-filter:blur(4px);}
+.map-ctrl-btn.active-ctrl{color:var(--green);border-color:var(--green2);}
+#map-legend{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(8,15,8,.9);border:1px solid var(--border);border-radius:6px;padding:7px 9px;backdrop-filter:blur(4px);}
+.legend-row{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--text2);margin-bottom:3px;}
+.legend-swatch{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+
+/* FORM ELEMENTS */
+.field-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;}
+.field-group{margin-bottom:13px;}
+.row{display:flex;gap:7px;}
+
+/* GPS / QUICK CAPTURE */
+#quick-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;}
+#quick-toggle-row span{font-size:11px;color:var(--text2);}
+.toggle-switch{position:relative;width:38px;height:21px;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg);border:1px solid var(--border2);border-radius:21px;transition:.2s;}
+.toggle-slider:before{content:'';position:absolute;width:15px;height:15px;left:2px;top:2px;background:var(--muted);border-radius:50%;transition:.2s;}
+input:checked+.toggle-slider{background:var(--green3);border-color:var(--green2);}
+input:checked+.toggle-slider:before{transform:translateX(17px);background:var(--green);}
+
+#gps-btn{width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+#gps-btn.ready{background:#0d2e0d;color:var(--green);border-color:var(--green2);}
+#gps-btn.loading{color:#888;}
+#gps-btn.error{color:var(--dry);border-color:#6a2a1a;}
+#coord-display{display:none;margin-top:6px;padding:6px 10px;background:#0a200a;border:1px solid var(--green2);border-radius:5px;font-size:10px;color:var(--green);}
+
+#moisture-input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:11px;border-radius:8px;font-family:var(--font);font-size:26px;font-weight:700;text-align:center;}
+#moisture-input:focus{outline:none;border-color:var(--green2);}
+#save-btn{padding:11px 18px;border-radius:8px;border:none;cursor:pointer;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.35;transition:opacity .15s,background .15s;}
+#save-btn.ready{opacity:1;background:#2a7a2a;}
+
+/* STATS */
+.stat-row{display:flex;gap:5px;margin-bottom:11px;}
+.stat-card{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:7px 4px;text-align:center;}
+.stat-val{font-size:17px;font-weight:700;}
+.stat-lbl{font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-top:2px;}
+
+/* READING ROWS */
+.reading-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--border);}
+.reading-row:last-child{border-bottom:none;}
+.r-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.r-val{font-weight:700;font-size:14px;min-width:36px;}
+.r-meta{flex:1;font-size:9px;color:var(--muted);line-height:1.5;}
+.r-del{background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 5px;}
+
+/* GRID ESTIMATOR */
+#grid-estimator{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;margin-bottom:13px;}
+#grid-estimator h3{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.ge-row{display:flex;gap:7px;align-items:center;margin-bottom:6px;}
+#sqft-input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:13px;}
+#ge-result{font-size:11px;color:var(--text2);line-height:1.8;padding:6px 0;}
+#ge-result b{color:var(--green);}
+
+/* ── SPLIT VIEW LAYOUT ── */
+#panel-capture{padding:0;display:flex;flex-direction:column;overflow-y:auto;}
+#viewfinder-wrap{position:relative;width:100%;flex:0 0 clamp(150px,32vh,240px);background:#000;overflow:hidden;transition:flex .2s;}
+#live-video{width:100%;height:100%;object-fit:cover;display:block;}
+#frozen-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+body.full-camera #viewfinder-wrap{flex:0 0 clamp(200px,50vh,360px);}
+body.full-camera #coverage-map-panel{display:none;}
+#split-toggle-btn{position:absolute;top:6px;left:10px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:15px;border-radius:5px;padding:3px 7px;cursor:pointer;backdrop-filter:blur(3px);z-index:20;line-height:1;}
+body.full-camera #split-toggle-btn{background:rgba(93,184,93,.3);border-color:rgba(93,184,93,.6);}
+#reticle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+#reticle-box{position:relative;width:54%;height:52%;border:none;}
+.reticle-corner{position:absolute;width:14px;height:14px;border-color:#5db85d;border-style:solid;}
+.reticle-corner.tl{top:0;left:0;border-width:2px 0 0 2px;}
+.reticle-corner.tr{top:0;right:0;border-width:2px 2px 0 0;}
+.reticle-corner.bl{bottom:0;left:0;border-width:0 0 2px 2px;}
+.reticle-corner.br{bottom:0;right:0;border-width:0 2px 2px 0;}
+#reticle-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:#5db85d;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;text-shadow:0 1px 3px #000;}
+#flash-overlay{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .08s;}
+#flash-overlay.flash{opacity:0.85;}
+#vf-status-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:6px 10px;background:linear-gradient(rgba(0,0,0,.6),transparent);font-size:10px;font-family:var(--font);pointer-events:none;}
+#vf-gps-status{color:#7ec87e;}
+#vf-pt-count{color:#cce0cc;}
+#cam-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#3d5e3d;font-size:13px;gap:6px;background:#080f08;}
+/* Coverage map panel */
+#coverage-map-panel{flex:0 0 clamp(75px,16vh,130px);display:flex;flex-direction:column;background:#080f08;border-top:1px solid var(--border);border-bottom:1px solid var(--border);overflow:hidden;}
+#coverage-map-header{display:flex;justify-content:space-between;align-items:center;padding:3px 10px;background:var(--bg3);flex-shrink:0;}
+#coverage-map-title{font-size:9px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;font-family:var(--font);}
+#coverage-pct-label{font-size:10px;color:var(--green);font-family:var(--font);font-weight:700;}
+#coverage-canvas{flex:1;display:block;width:100%;}
+#coverage-empty{display:none;flex:1;align-items:center;justify-content:center;font-size:10px;color:var(--muted);font-family:var(--font);text-align:center;padding:8px;}
+/* Bottom controls */
+#capture-bottom{flex:0 0 auto;display:flex;flex-direction:column;background:var(--bg2);}
+#live-stats-strip{display:flex;align-items:center;background:var(--bg3);border-bottom:1px solid var(--border);padding:6px 0;flex-shrink:0;}
+.ls-item{flex:1;text-align:center;}
+.ls-val{font-size:15px;font-weight:700;color:var(--green);}
+.ls-lbl{font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-top:1px;}
+.ls-divider{width:1px;height:24px;background:var(--border);}
+#feedback-undo-row{display:flex;align-items:center;justify-content:space-between;padding:3px 12px;min-height:24px;flex-shrink:0;}
+#capture-feedback{font-size:10px;color:var(--green);font-family:var(--font);flex:1;}
+#undo-btn{display:none;padding:4px 10px;border-radius:5px;border:1px solid var(--warn);background:transparent;color:var(--warn);font-family:var(--font);font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+#undo-btn.visible{display:block;}
+/* Capture + Next Green row */
+#capture-next-row{display:flex;align-items:center;justify-content:center;gap:14px;padding:6px 14px 4px;flex-shrink:0;position:sticky;bottom:0;background:var(--bg2);z-index:5;border-top:1px solid var(--border);}
+#capture-btn{width:64px;height:64px;border-radius:50%;border:3px solid var(--green2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .1s;}
+#capture-btn:active{transform:scale(.92);}
+#cap-btn-inner{width:50px;height:50px;border-radius:50%;background:var(--green2);display:flex;align-items:center;justify-content:center;transition:background .15s;}
+#capture-btn.capturing #cap-btn-inner{background:#1a5a1a;}
+#cap-ring{display:none;}
+#next-green-btn{flex:1;max-width:160px;padding:9px 10px;border-radius:10px;border:1px solid var(--green2);background:var(--bg3);color:var(--text);font-family:var(--font);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;transition:background .15s;}
+#next-green-btn:active{background:var(--green3);}
+#next-green-btn.complete{border-color:var(--green);background:#0a2a0a;}
+#next-green-label{font-size:12px;font-weight:700;color:var(--green);letter-spacing:.5px;}
+#next-green-sublabel{font-size:8px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+/* Grid */
+#grid-toggle-row{display:flex;justify-content:space-between;align-items:center;padding:6px 14px;background:var(--bg3);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);cursor:pointer;flex-shrink:0;}
+#grid-estimator{padding:8px 14px;background:var(--bg3);flex-shrink:0;}
+#grid-estimator .ge-row{margin-bottom:5px;}
+#sqft-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 9px;border-radius:5px;font-family:var(--font);font-size:13px;}
+#ge-result{font-size:11px;color:var(--text2);line-height:1.9;}
+#ge-result b{color:var(--green);}
+/* WiFi modal */
+#wifi-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9800;align-items:center;justify-content:center;padding:20px;}
+#wifi-modal.open{display:flex;}
+#wifi-box{background:var(--bg2);border:1px solid #6a4a00;border-radius:14px;padding:22px 18px 18px;max-width:340px;width:100%;}
+#wifi-box .wifi-icon{font-size:32px;text-align:center;margin-bottom:8px;}
+#wifi-box h2{font-size:14px;font-weight:700;color:#e8b83a;font-family:var(--font);margin-bottom:8px;text-align:center;}
+#wifi-box p{font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:8px;font-family:var(--font);}
+#wifi-box .wifi-steps{background:#1a1200;border:1px solid #4a3000;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#e8b83a;font-family:var(--font);line-height:2.1;}
+#wifi-dismiss{width:100%;padding:12px;border-radius:8px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;}
+/* Weather refresh */
+#wx-refresh-btn{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
+#wx-refresh-btn:active{color:var(--green);}
+#wx-refresh-btn.spinning{animation:spin .8s linear infinite;}
+
+/* PHOTO VIEWER MODAL */
+#photo-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9500;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+#photo-modal.open{display:flex;}
+#photo-modal img{max-width:95vw;max-height:75vh;border-radius:8px;object-fit:contain;}
+#photo-modal-close{background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:9px 24px;border-radius:20px;font-family:var(--font);font-size:12px;cursor:pointer;}
+#photo-modal-meta{font-size:11px;color:var(--text2);text-align:center;}
+
+/* THUMBNAIL in reading rows */
+.r-thumb{width:36px;height:36px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--border2);flex-shrink:0;}
+.r-thumb:active{opacity:.7;}
+
+/* TREND CHART */
+#trend-green-sel{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;width:100%;margin-bottom:12px;}
+#trend-canvas-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;position:relative;}
+#trend-canvas{display:block;width:100%;}
+.trend-legend{display:flex;gap:14px;font-size:10px;color:var(--text2);margin-top:6px;flex-wrap:wrap;}
+.tl-item{display:flex;align-items:center;gap:4px;}
+.tl-dot{width:10px;height:3px;border-radius:2px;}
+
+#weather-chart-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;}
+#weather-canvas{display:block;width:100%;}
+
+/* SESSION / HISTORY CARDS */
+.session-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:7px;cursor:pointer;transition:border-color .15s;}
+.session-card:hover{border-color:var(--green2);}
+.sc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.sc-green{font-weight:700;color:var(--green);font-size:13px;}
+.sc-date{font-size:10px;color:var(--muted);}
+.sc-stats{display:flex;gap:12px;font-size:11px;}
+.sc-wx{font-size:9px;color:var(--muted);margin-top:4px;}
+
+/* EXPORT */
+.export-btn{width:100%;padding:12px;border-radius:8px;border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.btn-csv{background:#0d2a4a;color:#8ac4f0;}
+.btn-json{background:#2a1a4a;color:#b8a0f0;}
+.install-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:12px;margin-top:4px;}
+.install-card h3{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:7px;}
+.install-card ol{padding-left:16px;line-height:2.1;font-size:11px;color:var(--text2);}
+.install-card b{color:var(--text);}
+
+/* ALERT BADGE */
+.alert-badge{display:inline-block;background:#3a1500;color:#e8903a;border:1px solid #6a3000;border-radius:4px;font-size:9px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
+
+/* MODAL */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;}
+#modal-overlay.open{display:flex;}
+#modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:22px;max-width:280px;text-align:center;}
+#modal-box p{font-size:13px;margin-bottom:16px;}
+.mb-row{display:flex;gap:8px;}
+.mb-row button{flex:1;padding:9px;border-radius:6px;font-family:var(--font);font-size:12px;cursor:pointer;}
+#modal-cancel{background:transparent;border:1px solid var(--border);color:var(--text);}
+#modal-confirm{background:#5a1a1a;border:none;color:#f0a0a0;font-weight:700;}
+
+/* TOAST */
+#toast{display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#1a4a1a;border:1px solid var(--green2);color:var(--green);padding:7px 16px;border-radius:20px;font-size:11px;z-index:9999;white-space:nowrap;pointer-events:none;}
+
+/* ── SETTINGS PANEL ── */
+#settings-btn{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px;line-height:1;}
+#settings-btn:active{color:var(--green);}
+#settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:8000;align-items:flex-end;justify-content:center;}
+#settings-overlay.open{display:flex;}
+#settings-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:18px 16px 36px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+#settings-box h2{font-size:13px;color:var(--green);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;font-weight:700;}
+.settings-section{margin-bottom:18px;}
+.settings-section h3{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+.api-key-row{display:flex;gap:7px;}
+#api-key-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 10px;border-radius:6px;font-family:monospace;font-size:12px;letter-spacing:1px;}
+#api-key-input:focus{outline:none;border-color:var(--green2);}
+#api-key-save{padding:9px 14px;border-radius:6px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;}
+#api-key-status{font-size:10px;margin-top:5px;min-height:16px;}
+.ai-status-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;}
+.ai-on{background:#0d300d;color:var(--green);border:1px solid var(--green2);}
+.ai-off{background:#1a1000;color:#e8b83a;border:1px solid #6a4a00;}
+#settings-close{width:100%;padding:11px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--font);font-size:13px;cursor:pointer;margin-top:10px;}
+
+/* ── AI READING OVERLAY ── */
+#ai-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.65);z-index:50;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+#ai-overlay.active{display:flex;}
+#ai-spinner{width:36px;height:36px;border:3px solid rgba(93,184,93,.3);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#ai-reading-label{color:#fff;font-size:12px;font-family:var(--font);letter-spacing:1px;}
+#ai-result-banner{display:none;padding:7px 12px;background:#0a2a0a;border:1px solid var(--green2);border-radius:6px;font-size:12px;color:var(--green);margin-bottom:8px;text-align:center;}
+
+/* ── ET / PREDICTION ── */
+.et-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:8px;}
+.et-card h3{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:7px;}
+.et-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.et-item{text-align:center;}
+.et-val{font-size:16px;font-weight:700;color:var(--green);}
+.et-lbl{font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-top:2px;}
+.prediction-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);}
+.prediction-row:last-child{border-bottom:none;}
+.pred-green{font-size:12px;font-weight:700;color:var(--text);min-width:70px;}
+.pred-val{font-size:14px;font-weight:700;}
+.pred-trend{font-size:10px;color:var(--muted);}
+
+/* ── IRRIGATION LOG ── */
+#irr-log-section{margin-bottom:14px;}
+.irr-form{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:11px 12px;margin-bottom:12px;}
+.irr-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:8px;}
+.irr-input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;}
+.irr-save-btn{width:100%;padding:10px;border-radius:7px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;text-transform:uppercase;}
+.irr-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin-bottom:6px;display:flex;align-items:center;gap:9px;}
+.irr-icon{font-size:18px;}
+.irr-info{flex:1;}
+.irr-head{font-size:12px;font-weight:700;color:var(--text);}
+.irr-meta{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.6;}
+.irr-del{background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 5px;}
+
+/* ── OFFLINE BADGE ── */
+#offline-badge{display:none;background:#3a1500;color:#e8903a;border:1px solid #6a3000;font-size:10px;padding:3px 10px;border-radius:10px;font-family:var(--font);}
+
+
+/* EDIT MODAL */
+#edit-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9100;align-items:flex-end;justify-content:center;}
+#edit-modal.open{display:flex;}
+#edit-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:18px 16px 32px;width:100%;max-width:480px;}
+#edit-box h3{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+#edit-photo-preview{width:100%;max-height:140px;object-fit:cover;border-radius:7px;margin-bottom:12px;display:none;border:1px solid var(--border);}
+#edit-photo-placeholder{background:var(--bg3);border:1px solid var(--border);border-radius:7px;height:52px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);margin-bottom:12px;}
+.edit-meta{font-size:10px;color:var(--text2);margin-bottom:12px;line-height:1.8;}
+.edit-input-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+#edit-value-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px;border-radius:8px;font-family:var(--font);font-size:28px;font-weight:700;text-align:center;}
+#edit-value-input:focus{outline:none;border-color:var(--green2);}
+.edit-quick-btns{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;}
+.eq-btn{padding:6px 10px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-family:var(--font);font-size:11px;cursor:pointer;}
+.eq-btn:active{background:var(--green3);color:#fff;border-color:var(--green2);}
+.edit-action-row{display:flex;gap:8px;}
+#edit-save-btn{flex:2;padding:12px;border-radius:8px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;}
+#edit-cancel-btn{flex:1;padding:12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--font);font-size:13px;cursor:pointer;}
+.spr-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:7px;display:flex;align-items:flex-start;gap:10px;}
+.spr-icon{width:36px;height:36px;border-radius:50%;background:#0d2040;border:2px solid #3a6aa8;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.spr-info{flex:1;}
+.spr-head{font-size:12px;font-weight:700;color:var(--text);}
+.spr-meta{font-size:10px;color:var(--text2);line-height:1.7;margin-top:2px;}
+.spr-del{background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 5px;flex-shrink:0;}
+
+/* MAP LAYER TOGGLE for sprinklers */
+#btn-sprinklers{background:rgba(8,15,8,.9);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--font);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:.5px;white-space:nowrap;backdrop-filter:blur(4px);}
+#btn-sprinklers.active-ctrl{color:#8ac4f0;border-color:#3a6aa8;}
+
+/* ── SETUP WIZARD ── */
+#setup-wizard{display:none;position:fixed;inset:0;background:var(--bg);z-index:9900;flex-direction:column;overflow-y:auto;}
+#setup-wizard.open{display:flex;}
+.setup-step{display:none;flex:1;flex-direction:column;padding:24px 18px 36px;max-width:480px;margin:0 auto;width:100%;}
+.setup-step.active{display:flex;}
+.setup-logo{font-size:40px;text-align:center;margin-bottom:8px;}
+.setup-title{font-size:17px;font-weight:700;color:var(--green);font-family:var(--font);text-align:center;margin-bottom:5px;}
+.setup-sub{font-size:12px;color:var(--text2);text-align:center;margin-bottom:22px;line-height:1.7;}
+.setup-progress{display:flex;gap:6px;justify-content:center;margin-bottom:20px;}
+.setup-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:background .2s;}
+.setup-dot.active{background:var(--green);}
+.setup-label{font-size:9px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;font-family:var(--font);}
+.setup-input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px 14px;border-radius:8px;font-family:var(--font);font-size:14px;margin-bottom:13px;}
+.setup-input:focus{outline:none;border-color:var(--green2);}
+.setup-next{width:100%;padding:14px;border-radius:10px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-top:auto;}
+.setup-skip{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--font);font-size:12px;cursor:pointer;margin-top:8px;}
+.grass-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+.grass-card{background:var(--bg3);border:2px solid var(--border);border-radius:8px;padding:10px 10px 8px;cursor:pointer;transition:border-color .15s,background .15s;}
+.grass-card.selected{border-color:var(--green);background:#0a200a;}
+.grass-card .gc-name{font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;font-family:var(--font);}
+.grass-card .gc-range{font-size:10px;color:var(--green);font-family:var(--font);margin-bottom:2px;}
+.grass-card .gc-desc{font-size:9px;color:var(--muted);font-family:var(--font);line-height:1.4;}
+
+/* ── SURVEY MODE ── */
+#survey-mode-bar{display:flex;align-items:center;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;}
+.mode-btn{flex:1;padding:7px 6px;border:none;background:transparent;font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:color .15s;}
+.mode-btn.active{color:var(--green);border-bottom-color:var(--green);background:#08130a;}
+#survey-progress-wrap{padding:3px 12px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+#survey-progress-bar-bg{flex:1;height:4px;background:var(--bg);border-radius:3px;overflow:hidden;}
+#survey-progress-bar-fill{height:100%;background:var(--green);border-radius:3px;transition:width .3s;width:0%;}
+#survey-progress-label{font-size:10px;color:var(--text2);font-family:var(--font);white-space:nowrap;}
+#survey-complete-badge{display:none;font-size:10px;color:var(--green);font-family:var(--font);font-weight:700;}
+
+/* ── STAFF BAR ── */
+#staff-bar{display:flex;align-items:center;gap:8px;padding:4px 12px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;}
+#staff-bar-name{font-size:10px;color:var(--text2);font-family:var(--font);flex:1;}
+#staff-edit-btn{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--font);padding:2px 6px;}
+#staff-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:8500;align-items:flex-end;justify-content:center;}
+#staff-modal.open{display:flex;}
+#staff-box{background:var(--bg2);border:1px solid var(--border);border-radius:14px 14px 0 0;padding:20px 16px 32px;width:100%;max-width:480px;}
+#staff-box h3{font-size:11px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;font-family:var(--font);}
+#staff-name-input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:12px 14px;border-radius:8px;font-family:var(--font);font-size:16px;margin-bottom:10px;}
+#staff-name-input:focus{outline:none;border-color:var(--green2);}
+#staff-save-btn{width:100%;padding:12px;border-radius:8px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;}
+#staff-cancel-btn{width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--font);font-size:12px;cursor:pointer;margin-top:7px;}
+
+/* ── THRESHOLD EDITOR ── */
+.threshold-table{width:100%;border-collapse:collapse;margin-bottom:8px;}
+.threshold-table td{padding:5px 5px;font-size:11px;font-family:var(--font);}
+.t-label{color:var(--text);}
+.t-range{color:var(--muted);font-size:9px;}
+.threshold-input{width:52px;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:4px 5px;border-radius:4px;font-family:var(--font);font-size:12px;text-align:center;}
+.t-swatch{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:3px;}
+.threshold-row-opt td{background:#0a1e0a;}
+.green-grass-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;font-family:var(--font);}
+.green-grass-row:last-child{border-bottom:none;}
+.gg-name{color:var(--text2);min-width:80px;}
+.gg-sel{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 5px;border-radius:4px;font-family:var(--font);font-size:10px;}
+/* ── ET PROMINENCE BAR ── */
+#et-bar{display:none;padding:4px 12px;font-size:10px;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid var(--border);transition:background .3s;}
+#et-bar.et-normal{background:var(--bg3);color:var(--text2);display:flex;}
+#et-bar.et-elevated{background:#1a2200;color:#c8e060;border-bottom-color:#3a5a00;display:flex;}
+#et-bar.et-high{background:#2a1400;color:var(--warn);border-bottom-color:#6a3a00;display:flex;}
+#et-bar.et-extreme{background:#2a0a0a;color:var(--dry);border-bottom-color:#7a2020;display:flex;animation:et-pulse 2s ease-in-out infinite;}
+@keyframes et-pulse{0%,100%{opacity:1;}50%{opacity:.75;}}
+#et-bar-label{font-weight:700;letter-spacing:.5px;}
+#et-bar-detail{font-size:9px;opacity:.8;}
+
+/* ── LDS DETECTION ── */
+.lds-flag-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--dry);animation:lds-pulse 1.4s ease-in-out infinite;margin-right:4px;vertical-align:middle;flex-shrink:0;}
+@keyframes lds-pulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.4);opacity:.6;}}
+.lds-alert-card{background:#1a0800;border:1px solid #6a2a00;border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:11px;font-family:var(--font);}
+.lds-alert-card .la-head{display:flex;align-items:center;font-weight:700;color:var(--warn);margin-bottom:3px;}
+.lds-alert-card .la-detail{font-size:10px;color:#b08050;line-height:1.6;}
+#lds-panel{margin-bottom:14px;}
+/* ── THERMAL WARNING BANNER ── */
+#thermal-banner{display:none;padding:5px 12px;font-size:10px;font-family:var(--font);align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;}
+#thermal-banner.th-warn{background:#1a1200;border-bottom:1px solid #6a4a00;color:var(--warn);display:flex;}
+#thermal-banner.th-hot{background:#220d00;border-bottom:1px solid #8a3000;color:#f08030;display:flex;}
+#thermal-banner.th-extreme{background:#200000;border-bottom:1px solid #900000;color:#ff6050;display:flex;animation:et-pulse 1.5s ease-in-out infinite;}
+#thermal-banner-text{flex:1;line-height:1.6;}
+#thermal-banner-dismiss{background:none;border:none;color:inherit;opacity:.6;cursor:pointer;font-size:15px;padding:0 2px;flex-shrink:0;}
+
+/* ── ON-DEMAND CAMERA ── */
+#ondemand-toggle-btn{position:absolute;top:6px;left:48px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:12px;border-radius:5px;padding:3px 7px;cursor:pointer;backdrop-filter:blur(3px);z-index:20;line-height:1;font-family:var(--font);font-weight:700;letter-spacing:.5px;white-space:nowrap;}
+#ondemand-toggle-btn.active{background:rgba(232,184,58,.25);border-color:rgba(232,184,58,.6);color:#e8b83a;}
+#cam-hint-overlay{position:absolute;inset:0;background:#020a02;z-index:15;flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none;}
+#cam-hint-overlay.show{display:flex;}
+#cam-hint-icon{font-size:30px;}
+#cam-hint-text{font-size:13px;color:var(--text2);font-family:var(--font);font-weight:700;}
+#cam-hint-sub{font-size:9px;color:var(--muted);font-family:var(--font);letter-spacing:.5px;}
+/* Reticle corners visible on hint overlay */
+#cam-hint-overlay .reticle-corner{position:absolute;width:16px;height:16px;border-color:rgba(93,184,93,.5);border-style:solid;}
+#cam-hint-overlay .reticle-corner.tl{top:20%;left:23%;border-width:2px 0 0 2px;}
+#cam-hint-overlay .reticle-corner.tr{top:20%;right:23%;border-width:2px 2px 0 0;}
+#cam-hint-overlay .reticle-corner.bl{bottom:28%;left:23%;border-width:0 0 2px 2px;}
+#cam-hint-overlay .reticle-corner.br{bottom:28%;right:23%;border-width:0 2px 2px 0;}
+
+/* ── OCR STATUS ── */
+.ocr-status-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:10px;font-size:10px;font-weight:700;font-family:var(--font);}
+.ocr-ready{background:#0d2e0d;color:var(--green);border:1px solid var(--green2);}
+.ocr-loading{background:#1a1200;color:var(--warn);border:1px solid #6a4a00;}
+.ocr-error{background:#1a0000;color:var(--dry);border:1px solid #6a1010;}
+.ocr-off{background:var(--bg3);color:var(--muted);border:1px solid var(--border);}
+#ocr-progress-text{font-size:10px;color:var(--muted);font-family:var(--font);margin-top:4px;min-height:14px;}
+.ocr-mode-row{display:flex;gap:5px;margin-bottom:10px;}
+.ocr-mode-btn{flex:1;padding:7px 5px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--muted);font-family:var(--font);font-size:10px;cursor:pointer;font-weight:700;letter-spacing:.5px;text-align:center;}
+.ocr-mode-btn.selected{border-color:var(--green2);background:#0a200a;color:var(--green);}
+/* ── SUNLIGHT MODE — MAP CONTROLS ── */
+body.sunlight .map-ctrl-btn{background:rgba(255,255,255,.93);border-color:#88AA88;color:#1B5E20;}
+body.sunlight .map-ctrl-btn.active-ctrl{background:rgba(232,255,232,.95);color:#1B5E20;border-color:#2E7D32;font-weight:800;}
+body.sunlight #map-legend{background:rgba(255,255,255,.93);border-color:#88AA88;}
+body.sunlight .legend-row{color:#334433;}
+body.sunlight #boundary-controls{background:rgba(255,255,255,.93);border-color:#2E7D32;}
+body.sunlight .bnd-title{color:#1B5E20;}
+body.sunlight .bnd-pts{color:#334433;}
+body.sunlight .bnd-btn{background:rgba(245,248,245,.9);border-color:#AABFAA;color:#334433;}
+body.sunlight .bnd-btn.primary{background:#2E7D32;color:#fff;border-color:#1B5E20;}
+body.sunlight .bnd-btn.danger{background:transparent;border-color:#C62828;color:#C62828;}
+
+/* ── SMALL SCREEN COMPACTION ── */
+@media (max-height:700px){
+  #header{padding:6px 12px 5px;}
+  #header h1{font-size:12px;}
+  #session-bar{padding:5px 10px;}
+  #session-bar select,#session-bar input[type=date]{padding:4px 7px;font-size:11px;}
+  #weather-bar{padding:3px 10px;font-size:9px;}
+  #et-bar{padding:2px 10px;font-size:9px;}
+  #staff-bar{padding:2px 10px;}
+  #survey-mode-bar .mode-btn{padding:5px 4px;font-size:9px;}
+  #survey-progress-wrap{padding:2px 10px;}
+  #tab-bar .tab-btn{padding:5px 0;font-size:8px;}
+  #tab-bar .tab-btn .icon{font-size:13px;}
+  #viewfinder-wrap{flex:0 0 clamp(130px,28vh,200px);}
+  #coverage-map-panel{flex:0 0 clamp(60px,13vh,100px);}
+  .ls-val{font-size:13px;}
+}
+</style>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#0d1a0d"/>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.4/dist/tesseract.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <div>
+      <h1>⛳ Turf Intelligence Platform</h1>
+      <p>Golf Course Moisture & Irrigation Analytics</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span id="offline-badge">OFFLINE</span>
+      <span id="wakelock-indicator" title="Screen wake lock"></span>
+      <div id="hdr-right" style="text-align:right;font-size:10px;color:var(--muted);line-height:1.6;">
+        <span id="hdr-pts">0 pts</span><br/>
+        <span id="hdr-sessions">0 sessions</span>
+      </div>
+      <button id="sunlight-btn" onclick="toggleSunlight()" title="Toggle sunlight mode">☀️</button>
+      <button id="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <!-- SESSION BAR -->
+  <div id="session-bar">
+    <select id="green-sel"></select>
+    <input type="date" id="date-sel"/>
+  </div>
+
+  <!-- WEATHER BAR -->
+  <div id="weather-bar" class="loading">
+    <span id="wx-content">📡 Weather loads when GPS is captured…</span>
+    <button id="wx-refresh-btn" onclick="refreshWeather()" title="Refresh weather">🔄</button>
+  </div>
+
+  <!-- ET PROMINENCE BAR -->
+  <div id="et-bar">
+    <span id="et-bar-label"></span>
+    <span id="et-bar-detail"></span>
+  </div>
+
+  <!-- THERMAL WARNING BANNER -->
+  <div id="thermal-banner">
+    <span id="thermal-banner-text"></span>
+    <button id="thermal-banner-dismiss" onclick="dismissThermal()">✕</button>
+  </div>
+
+  <!-- ALERTS BAR -->
+  <div id="alerts-bar"></div>
+
+  <!-- TABS -->
+  <div id="tab-bar">
+    <button class="tab-btn" data-tab="dashboard" onclick="switchTab('dashboard')"><span class="icon">🏌️</span>Course</button>
+    <button class="tab-btn active" data-tab="capture" onclick="switchTab('capture')"><span class="icon">📍</span>Capture</button>
+    <button class="tab-btn" data-tab="map" onclick="switchTab('map')"><span class="icon">🛰</span>Map</button>
+    <button class="tab-btn" data-tab="trend" onclick="switchTab('trend')"><span class="icon">📈</span>Trend</button>
+    <button class="tab-btn" data-tab="intelligence" onclick="switchTab('intelligence')"><span class="icon">🧠</span>Intel</button>
+    <button class="tab-btn" data-tab="history" onclick="switchTab('history')"><span class="icon">📋</span>History</button>
+    <button class="tab-btn" data-tab="sprinklers" onclick="switchTab('sprinklers')"><span class="icon">💧</span>Heads</button>
+    <button class="tab-btn" data-tab="export" onclick="switchTab('export')"><span class="icon">⬇</span>Export</button>
+  </div>
+
+  <div id="content">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="panel-dashboard">
+      <!-- Summary bar -->
+      <div class="dashboard-summary">
+        <div class="ds-row">
+          <div class="ds-item"><div class="ds-val" id="ds-surveyed">0</div><div class="ds-lbl">Surveyed Today</div></div>
+          <div class="ds-divider"></div>
+          <div class="ds-item"><div class="ds-val" id="ds-alerts">0</div><div class="ds-lbl">Alerts</div></div>
+          <div class="ds-divider"></div>
+          <div class="ds-item"><div class="ds-val" id="ds-avg">—</div><div class="ds-lbl">Course Avg</div></div>
+          <div class="ds-divider"></div>
+          <div class="ds-item"><div class="ds-val" id="ds-total">21</div><div class="ds-lbl">Total Greens</div></div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>Today's Progress</span>
+            <span id="ds-progress-label">0 / 21</span>
+          </div>
+          <div class="progress-bar-bg"><div class="progress-bar-fill" id="ds-progress-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Green tiles grid -->
+      <div class="field-label">All Greens — Tap to view map</div>
+      <div class="dashboard-grid" id="dashboard-grid"></div>
+    </div>
+
+    <!-- ── CAPTURE ── -->
+    <div class="panel active" id="panel-capture">
+
+      <!-- LIVE CAMERA VIEWFINDER -->
+      <div id="viewfinder-wrap">
+        <video id="live-video" autoplay playsinline muted></video>
+        <canvas id="snap-canvas" style="display:none;"></canvas>
+        <div id="reticle">
+          <div id="reticle-box">
+            <div class="reticle-corner tl"></div><div class="reticle-corner tr"></div>
+            <div class="reticle-corner bl"></div><div class="reticle-corner br"></div>
+            <div id="reticle-label">Meter Display</div>
+          </div>
+        </div>
+        <div id="flash-overlay"></div>
+        <img id="frozen-frame" style="display:none;" alt="captured"/>
+        <div id="ai-overlay"><div id="ai-spinner"></div><div id="ai-reading-label">Reading meter display…</div></div>
+        <div id="vf-status-bar">
+          <span id="vf-gps-status">📍 GPS…</span>
+          <span id="vf-pt-count">0 pts</span>
+        </div>
+        <button id="split-toggle-btn" onclick="toggleSplitView()" title="Toggle coverage map">⊞</button>
+        <button id="ondemand-toggle-btn" onclick="toggleOnDemandCamera()" title="On-demand camera saves heat">🔆 ON-DEMAND</button>
+
+        <!-- On-demand hint overlay — shown when camera is off -->
+        <div id="cam-hint-overlay">
+          <div class="reticle-corner tl"></div><div class="reticle-corner tr"></div>
+          <div class="reticle-corner bl"></div><div class="reticle-corner br"></div>
+          <span id="cam-hint-icon">📷</span>
+          <span id="cam-hint-text">Tap ● to capture</span>
+          <span id="cam-hint-sub">ON-DEMAND · Camera off between captures</span>
+        </div>
+
+        <div id="cam-fallback" style="display:none;">
+          <div>📷</div><div>Camera unavailable</div>
+          <div style="font-size:10px;margin-top:4px;">Use Safari on iPhone<br/>and allow camera access</div>
+        </div>
+      </div>
+
+      <!-- LIVE COVERAGE DOT-PLOT -->
+      <div id="coverage-map-panel">
+        <div id="coverage-map-header">
+          <span id="coverage-map-title">Coverage — <span id="cov-green-name">—</span></span>
+          <span id="coverage-pct-label"></span>
+        </div>
+        <canvas id="coverage-canvas"></canvas>
+        <div id="coverage-empty">Capture your first point to see coverage</div>
+      </div>
+
+      <!-- BOTTOM CONTROLS -->
+      <div id="capture-bottom">
+
+        <!-- Staff bar -->
+        <div id="staff-bar">
+          <span id="staff-bar-name">👤 Tap to set surveyor name</span>
+          <button id="staff-edit-btn" onclick="openStaffModal()">✏ Change</button>
+        </div>
+
+        <!-- Survey mode toggle -->
+        <div id="survey-mode-bar">
+          <button class="mode-btn active" id="mode-quick" onclick="setSurveyMode('quick')">⚡ Quick Scan (~20 pts)</button>
+          <button class="mode-btn" id="mode-full" onclick="setSurveyMode('full')">📐 Full Survey (grid)</button>
+        </div>
+
+        <!-- Survey progress -->
+        <div id="survey-progress-wrap">
+          <div id="survey-progress-bar-bg"><div id="survey-progress-bar-fill"></div></div>
+          <span id="survey-progress-label">0 / 20 pts</span>
+          <span id="survey-complete-badge">✓ Complete!</span>
+        </div>
+
+        <div id="live-stats-strip">
+          <div class="ls-item"><div class="ls-val" id="ls-cnt">0</div><div class="ls-lbl">Points</div></div>
+          <div class="ls-divider"></div>
+          <div class="ls-item"><div class="ls-val" id="ls-avg">—</div><div class="ls-lbl">Avg %</div></div>
+          <div class="ls-divider"></div>
+          <div class="ls-item"><div class="ls-val" id="ls-last">—</div><div class="ls-lbl">Last %</div></div>
+          <div class="ls-divider"></div>
+          <div class="ls-item"><div class="ls-val" id="ls-min">—</div><div class="ls-lbl">Min %</div></div>
+        </div>
+        <div id="feedback-undo-row">
+          <div id="capture-feedback"></div>
+          <button id="undo-btn" onclick="undoLastCapture()">↩ Undo</button>
+        </div>
+        <div id="capture-next-row">
+          <button id="capture-btn" onclick="doCapture()">
+            <span id="cap-btn-inner"><span id="cap-ring"></span></span>
+          </button>
+          <button id="next-green-btn" onclick="goNextGreen()">
+            <span id="next-green-label">→ Green 2</span>
+            <span id="next-green-sublabel">next</span>
+          </button>
+        </div>
+        <div id="grid-toggle-row" onclick="toggleGrid()">
+          <span>📐 Grid Estimator</span><span id="grid-arrow">▾</span>
+        </div>
+        <div id="grid-estimator" style="display:none;">
+          <div class="ge-row"><input id="sqft-input" type="number" placeholder="Green sq ft (e.g. 6800)" oninput="calcGrid()"/></div>
+          <div id="ge-result"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MAP ── -->
+    <div id="panel-map" class="panel">
+      <div id="map-container">
+        <div id="leaflet-map"></div>
+        <div id="map-legend">
+          <div class="legend-row"><div class="legend-swatch" style="background:#e05c3a"></div>&lt;20 Very Dry</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#e8923a"></div>20–29 Dry</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#d4c94a"></div>30–39 Sl. Dry</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#5cb85c"></div>40–54 Optimal</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#4ab3b8"></div>55–64 Sl. Wet</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#3a82c8"></div>65–74 Wet</div>
+          <div class="legend-row"><div class="legend-swatch" style="background:#2a4fa8"></div>≥75 Very Wet</div>
+        </div>
+        <div id="map-controls">
+          <button class="map-ctrl-btn active-ctrl" id="btn-heat" onclick="toggleLayer('heat')">🌡 Heatmap</button>
+          <button class="map-ctrl-btn" id="btn-pins" onclick="toggleLayer('pins')">📍 Pins</button>
+          <button class="map-ctrl-btn" id="btn-gaps" onclick="toggleGapAnalysis()">🔴 Gap Analysis</button>
+          <button class="map-ctrl-btn" id="btn-draw-boundary" onclick="startBoundaryDraw()">✏️ Draw Boundary</button>
+          <button class="map-ctrl-btn" id="btn-sat"  onclick="toggleSat()">🛰 Satellite</button>
+        </div>
+
+        <!-- Boundary drawing UI -->
+        <div id="boundary-controls">
+          <div class="bnd-title">✏️ Drawing Green Boundary</div>
+          <div class="bnd-pts" id="bnd-pt-count">Tap map to add points (0)</div>
+          <button class="bnd-btn primary" onclick="saveBoundary()">✓ Save Boundary</button>
+          <button class="bnd-btn" onclick="clearBoundaryDraft()">↩ Clear Points</button>
+          <button class="bnd-btn danger" onclick="deleteSavedBoundary()">🗑 Delete Saved</button>
+          <button class="bnd-btn" onclick="cancelBoundaryDraw()">✕ Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TREND ── -->
+    <div id="panel-trend" class="panel">
+      <div class="field-label">Select Green</div>
+      <select id="trend-green-sel" onchange="renderTrend()"></select>
+
+      <div class="field-label">Moisture Trend</div>
+      <div id="trend-canvas-wrap">
+        <canvas id="trend-canvas" height="180"></canvas>
+        <div class="trend-legend">
+          <div class="tl-item"><div class="tl-dot" style="background:#5cb85c;height:2px;"></div>Avg</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#3a82c8;height:6px;opacity:.35;"></div>Min–Max band</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#e05c3a;height:1px;border-top:1px dashed #e05c3a;"></div>Dry threshold (25%)</div>
+        </div>
+      </div>
+
+      <div class="field-label">Weather at Survey Time</div>
+      <div id="weather-chart-wrap">
+        <canvas id="weather-canvas" height="120"></canvas>
+        <div class="trend-legend" style="margin-top:5px;">
+          <div class="tl-item"><div class="tl-dot" style="background:#e8b83a;height:2px;"></div>Temp °F</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#3a82c8;height:2px;"></div>Humidity %</div>
+          <div class="tl-item"><div class="tl-dot" style="background:#7a4ab8;height:2px;"></div>Rain mm</div>
+        </div>
+      </div>
+
+      <div id="trend-empty" class="empty-state" style="display:none;">
+        No trend data yet.<br/>Complete surveys on 2+ dates<br/>to see the trend chart.
+      </div>
+    </div>
+
+    <!-- ── HISTORY ── -->
+    <div class="panel" id="panel-history">
+      <div id="history-content"></div>
+    </div>
+
+    <!-- ── SPRINKLERS ── -->
+    <div class="panel" id="panel-sprinklers">
+
+      <div class="field-label">Green / Location</div>
+      <select id="spr-green-sel" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;width:100%;margin-bottom:12px;"></select>
+
+      <!-- Add new head form -->
+      <div id="spr-form" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:11px 12px;margin-bottom:14px;">
+        <div class="field-label">Log New Sprinkler Head</div>
+
+        <div class="field-label" style="margin-top:6px;">Make & Model</div>
+        <div style="display:flex;gap:7px;margin-bottom:10px;">
+          <input id="spr-make" type="text" placeholder="e.g. Toro" style="flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;"/>
+          <input id="spr-model" type="text" placeholder="e.g. 640 Series" style="flex:2;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;"/>
+        </div>
+
+        <div style="display:flex;gap:7px;margin-bottom:10px;">
+          <div style="flex:1;">
+            <div class="field-label">Throw (ft)</div>
+            <input id="spr-throw" type="number" min="1" max="200" placeholder="e.g. 35" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:13px;font-weight:700;"/>
+          </div>
+          <div style="flex:1;">
+            <div class="field-label">Arc (°)</div>
+            <select id="spr-arc" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;">
+              <option value="90">90° — Quarter</option>
+              <option value="120">120° — Third</option>
+              <option value="180">180° — Half</option>
+              <option value="270">270° — Three-quarter</option>
+              <option value="360" selected>360° — Full</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="spr-arc-custom-wrap" style="display:none;margin-bottom:10px;">
+          <div class="field-label">Custom Arc (°)</div>
+          <input id="spr-arc-custom" type="number" min="1" max="360" placeholder="e.g. 210" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:13px;"/>
+        </div>
+
+        <div class="field-label">Notes <span style="color:var(--muted);font-size:9px;">(optional — e.g. "adjusted down", "blocked by cart path")</span></div>
+        <input id="spr-notes" type="text" placeholder="Optional notes…" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:5px;font-family:var(--font);font-size:12px;margin-bottom:10px;"/>
+
+        <div class="field-label">Last Service Date <span style="color:var(--muted);font-size:9px;">(optional)</span></div>
+        <input id="spr-service" type="date" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-family:var(--font);font-size:12px;margin-bottom:12px;"/>
+
+        <button id="spr-gps-btn" onclick="captureSprinklerGPS()" style="width:100%;padding:11px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;">
+          <span id="spr-gps-icon">📍</span><span id="spr-gps-txt">Capture GPS Location</span>
+        </button>
+        <div id="spr-coord-display" style="display:none;padding:6px 10px;background:#0a200a;border:1px solid var(--green2);border-radius:5px;font-size:10px;color:var(--green);margin-bottom:10px;"></div>
+
+        <button id="spr-save-btn" onclick="saveSprinkler()" style="width:100%;padding:12px;border-radius:7px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;opacity:.35;transition:opacity .15s;">
+          Save Sprinkler Head
+        </button>
+      </div>
+
+      <!-- Heads list for selected green -->
+      <div class="field-label" id="spr-list-label">Logged Heads</div>
+      <div id="spr-list"></div>
+    </div>
+
+    <!-- ── INTELLIGENCE ── -->
+    <div class="panel" id="panel-intelligence">
+
+      <!-- LDS ALERTS -->
+      <div id="lds-panel" style="display:none;">
+        <div class="field-label">⚠ Localized Dry Spot Alerts</div>
+        <div id="lds-alerts-list"></div>
+      </div>
+
+      <!-- ET Summary -->
+      <div class="field-label">Today's Evapotranspiration Estimate</div>
+      <div class="et-card" id="et-today-card">
+        <h3>Based on latest weather data</h3>
+        <div class="et-grid">
+          <div class="et-item"><div class="et-val" id="et-rate">—</div><div class="et-lbl">ET mm/day</div></div>
+          <div class="et-item"><div class="et-val" id="et-pct">—</div><div class="et-lbl">Est. % Loss</div></div>
+          <div class="et-item"><div class="et-val" id="et-hours">—</div><div class="et-lbl">Hrs to −5%</div></div>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-top:8px;">FAO-56 simplified · bentgrass Kc=0.85 · updates on GPS capture</div>
+      </div>
+
+      <!-- Moisture Predictions -->
+      <div class="field-label" style="margin-top:12px;">Predicted Current Moisture <span style="color:var(--muted);font-size:9px;">— based on last survey + ET drydown</span></div>
+      <div id="predictions-list"><div class="empty-state" style="padding:20px 0;">Complete at least one survey to see predictions.</div></div>
+
+      <!-- Irrigation Log -->
+      <div class="field-label" style="margin-top:14px;">Log Irrigation Event</div>
+      <div class="irr-form">
+        <div class="irr-form-grid">
+          <div>
+            <div class="field-label">Green</div>
+            <select id="irr-green" class="irr-input"></select>
+          </div>
+          <div>
+            <div class="field-label">Date</div>
+            <input id="irr-date" type="date" class="irr-input"/>
+          </div>
+          <div>
+            <div class="field-label">Type</div>
+            <select id="irr-type" class="irr-input">
+              <option value="hand">Hand-watering</option>
+              <option value="zone">Zone run</option>
+              <option value="syringe">Syringe</option>
+              <option value="full">Full cycle</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-label">Duration (min)</div>
+            <input id="irr-duration" type="number" min="1" max="999" placeholder="e.g. 15" class="irr-input"/>
+          </div>
+        </div>
+        <div class="field-label">Notes</div>
+        <input id="irr-notes" type="text" placeholder="e.g. dry spot SW corner, head #4 adjusted" class="irr-input" style="margin-bottom:9px;"/>
+        <button class="irr-save-btn" onclick="saveIrrigation()">💧 Log Irrigation Event</button>
+      </div>
+
+      <div class="field-label">Irrigation History</div>
+      <div id="irr-list"></div>
+    </div>
+
+    <!-- ── EXPORT ── -->
+    <div class="panel" id="panel-export">
+      <div class="field-label">Data Summary</div>
+      <div class="stat-row">
+        <div class="stat-card"><div class="stat-val" id="exp-sessions">0</div><div class="stat-lbl">Sessions</div></div>
+        <div class="stat-card"><div class="stat-val" id="exp-pts">0</div><div class="stat-lbl">Total Pts</div></div>
+        <div class="stat-card"><div class="stat-val" id="exp-greens">0</div><div class="stat-lbl">Greens</div></div>
+      </div>
+      <button class="export-btn btn-csv" onclick="exportCSV()">⬇ Download CSV</button>
+      <button class="export-btn btn-json" onclick="exportJSON()">⬇ Backup JSON</button>
+      <div class="field-label">Restore from Backup</div>
+      <label style="display:block;padding:11px;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;text-align:center;cursor:pointer;font-size:11px;color:var(--muted);margin-bottom:12px;">
+        📂 Tap to import JSON backup
+        <input type="file" accept=".json" style="display:none" onchange="importJSON(event)"/>
+      </label>
+      <div class="install-card">
+        <h3>Install on iPhone</h3>
+        <ol>
+          <li>Open in <b>Safari</b></li>
+          <li>Tap the <b>Share ↑</b> button</li>
+          <li>Tap <b>"Add to Home Screen"</b></li>
+          <li>Works offline on the course ✓</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO VIEWER -->
+<div id="photo-modal">
+  <img id="photo-modal-img" src="" alt="Meter reading photo"/>
+  <div id="photo-modal-meta"></div>
+  <button id="photo-modal-close" onclick="closePhotoModal()">✕ Close</button>
+</div>
+
+<!-- EDIT READING MODAL -->
+<div id="edit-modal">
+  <div id="edit-box">
+    <h3>✏️ Edit Moisture Reading</h3>
+    <img id="edit-photo-preview" src="" alt="Meter photo"/>
+    <div id="edit-photo-placeholder">📷 No photo for this point</div>
+    <div class="edit-meta" id="edit-meta-text"></div>
+    <div class="field-label">Moisture Value (0–100%)</div>
+    <div class="edit-input-row">
+      <input id="edit-value-input" type="number" min="0" max="100" placeholder="—"/>
+    </div>
+    <div class="field-label">Quick-set</div>
+    <div class="edit-quick-btns">
+      <button class="eq-btn" onclick="setEditQuick(15)">15% Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(25)">25% Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(35)">35% Sl.Dry</button>
+      <button class="eq-btn" onclick="setEditQuick(47)">47% Optimal</button>
+      <button class="eq-btn" onclick="setEditQuick(60)">60% Sl.Wet</button>
+      <button class="eq-btn" onclick="setEditQuick(70)">70% Wet</button>
+    </div>
+    <div class="edit-action-row">
+      <button id="edit-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button id="edit-save-btn" onclick="saveEdit()">Save Reading</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div id="settings-overlay">
+  <div id="settings-box">
+    <h2>⚙️ Settings</h2>
+
+    <div class="settings-section">
+      <h3>Course Info</h3>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:7px;" id="settings-course-info">—</div>
+      <button onclick="reopenSetup()" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:6px 12px;border-radius:5px;font-family:var(--font);font-size:11px;cursor:pointer;">Re-run Setup Wizard</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Course Grass Type</h3>
+      <select id="settings-grass-sel" onchange="onCourseGrassChange()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 9px;border-radius:6px;font-family:var(--font);font-size:12px;margin-bottom:10px;"></select>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:12px;" id="settings-grass-desc"></div>
+
+      <h3 style="margin-top:0;">Moisture Thresholds <span style="color:var(--muted);font-size:9px;text-transform:none;letter-spacing:0;">(for selected grass type)</span></h3>
+      <div id="threshold-editor-wrap"></div>
+      <button onclick="saveCustomThresholds()" style="width:100%;padding:8px;border-radius:6px;border:none;background:var(--green3);color:#fff;font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;margin-bottom:8px;">Save Custom Thresholds</button>
+      <button onclick="resetThresholds()" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--font);font-size:11px;cursor:pointer;">Reset to Defaults</button>
+    </div>
+
+    <div class="settings-section">
+      <h3>Per-Green Grass Override</h3>
+      <p style="font-size:10px;color:var(--muted);margin-bottom:8px;">Override the grass type for individual greens that differ from the course default.</p>
+      <div id="per-green-grass-list"></div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Meter Reading (OCR)</h3>
+      <p style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7;">Select your moisture meter display type first — this determines which reading method is used.</p>
+
+      <div class="field-label">Meter Display Type</div>
+      <div class="ocr-mode-row" style="margin-bottom:12px;">
+        <button class="ocr-mode-btn" id="meter-btn-digital" onclick="setMeterType('digital')">🔢 Digital<br/><span style="font-size:8px;font-weight:400;">LCD/7-segment</span></button>
+        <button class="ocr-mode-btn" id="meter-btn-analog"  onclick="setMeterType('analog')">⏱ Analog<br/><span style="font-size:8px;font-weight:400;">Needle dial</span></button>
+        <button class="ocr-mode-btn" id="meter-btn-manual"  onclick="setMeterType('manual')">✏️ Manual<br/><span style="font-size:8px;font-weight:400;">Enter values</span></button>
+      </div>
+
+      <!-- Digital meter section -->
+      <div id="ocr-digital-section">
+        <div class="field-label">OCR Engine</div>
+        <div class="ocr-mode-row">
+          <button class="ocr-mode-btn" id="ocr-btn-tesseract" onclick="setOCRMode('tesseract')">🔍 Tesseract<br/><span style="font-size:8px;font-weight:400;">Free · Offline · 7seg</span></button>
+          <button class="ocr-mode-btn" id="ocr-btn-claude"    onclick="setOCRMode('claude')">🤖 Claude API<br/><span style="font-size:8px;font-weight:400;">Requires key</span></button>
+          <button class="ocr-mode-btn" id="ocr-btn-off"       onclick="setOCRMode('off')">○ Off<br/><span style="font-size:8px;font-weight:400;">Manual entry</span></button>
+        </div>
+        <div id="ocr-status-wrap" style="margin-bottom:8px;"></div>
+        <div id="ocr-progress-text"></div>
+        <button onclick="initTesseract(true)" style="margin-top:6px;background:none;border:1px solid var(--border2);color:var(--text2);padding:5px 12px;border-radius:5px;font-family:var(--font);font-size:10px;cursor:pointer;">Initialize Now</button>
+      </div>
+
+      <!-- Analog meter section -->
+      <div id="ocr-analog-section" style="display:none;">
+        <div style="background:#0a1a2a;border:1px solid #1a3a5a;border-radius:6px;padding:9px 10px;font-size:11px;color:#7ab8f0;line-height:1.7;margin-bottom:8px;">
+          ⏱ Analog needle meters require <b>Claude Vision API</b> for automatic reading. The AI interprets the needle position on the arc scale.<br/>
+          <span style="color:var(--muted);">Future: custom needle detection algorithm for offline use.</span>
+        </div>
+        <div id="ai-key-status-row" style="margin-bottom:9px;"></div>
+        <div class="api-key-row">
+          <input id="api-key-input" type="password" placeholder="sk-ant-api03-…" autocomplete="off" autocorrect="off" spellcheck="false"/>
+          <button id="api-key-save" onclick="saveAPIKey()">Save</button>
+        </div>
+        <div id="api-key-status"></div>
+        <button onclick="clearAPIKey()" style="margin-top:8px;background:none;border:none;color:var(--muted);font-size:10px;cursor:pointer;font-family:var(--font);padding:0;">Clear saved key</button>
+      </div>
+
+      <!-- Manual section -->
+      <div id="ocr-manual-section" style="display:none;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 10px;font-size:11px;color:var(--text2);line-height:1.7;">
+          ✏️ All points are captured with GPS + photo only. Enter moisture values in the History tab after your survey using the ✏ edit button on each point.
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Offline Mode</h3>
+      <div id="sw-status" style="font-size:11px;color:var(--text2);"></div>
+    </div>
+
+    <div class="settings-section">
+      <h3>About</h3>
+      <div style="font-size:11px;color:var(--text2);line-height:1.8;">
+        Turf Intelligence Platform v12<br/>
+        OCR · Thermal Management · LDS Detection · ET Intelligence<br/>
+        <span style="color:var(--muted);">Tesseract.js · Leaflet.js · Open-Meteo</span>
+      </div>
+    </div>
+
+    <button id="settings-close" onclick="closeSettings()">Done</button>
+  </div>
+</div>
+
+<!-- SETUP WIZARD -->
+<div id="setup-wizard">
+  <!-- Step 1: Welcome + Course Info -->
+  <div class="setup-step active" id="setup-step-1">
+    <div class="setup-progress">
+      <div class="setup-dot active"></div><div class="setup-dot"></div><div class="setup-dot"></div><div class="setup-dot"></div>
+    </div>
+    <div class="setup-logo">⛳</div>
+    <div class="setup-title">Welcome to TIP</div>
+    <div class="setup-sub">Turf Intelligence Platform<br/>Let's get your course set up — takes about 2 minutes.</div>
+    <div class="setup-label">Course Name</div>
+    <input class="setup-input" id="setup-course-name" type="text" placeholder="e.g. Ridgeway Country Club" autocomplete="off"/>
+    <div class="setup-label">Superintendent Name</div>
+    <input class="setup-input" id="setup-super-name" type="text" placeholder="Your full name" autocomplete="off"/>
+    <div class="setup-label">Default Green Size (sq ft) <span style="color:var(--muted);font-size:9px;">Optional</span></div>
+    <input class="setup-input" id="setup-sqft" type="number" placeholder="e.g. 6000" style="margin-bottom:0;"/>
+    <button class="setup-next" onclick="setupNext(1)">Next →</button>
+  </div>
+
+  <!-- Step 2: Grass Type -->
+  <div class="setup-step" id="setup-step-2">
+    <div class="setup-progress">
+      <div class="setup-dot active"></div><div class="setup-dot active"></div><div class="setup-dot"></div><div class="setup-dot"></div>
+    </div>
+    <div class="setup-logo">🌿</div>
+    <div class="setup-title">Select Your Grass Type</div>
+    <div class="setup-sub">This sets the moisture thresholds for the entire course. You can override individual greens later.</div>
+    <div class="grass-grid" id="grass-type-grid"></div>
+    <button class="setup-next" onclick="setupNext(2)">Next →</button>
+  </div>
+
+  <!-- Step 3: Threshold Review -->
+  <div class="setup-step" id="setup-step-3">
+    <div class="setup-progress">
+      <div class="setup-dot active"></div><div class="setup-dot active"></div><div class="setup-dot active"></div><div class="setup-dot"></div>
+    </div>
+    <div class="setup-logo">📊</div>
+    <div class="setup-title">Moisture Thresholds</div>
+    <div class="setup-sub">These are agronomic benchmarks for <span id="setup-grass-name-display">your grass type</span>. Adjust now or anytime in Settings → Thresholds.</div>
+    <div id="setup-threshold-table-wrap"></div>
+    <button class="setup-next" onclick="setupNext(3)">Looks Good →</button>
+  </div>
+
+  <!-- Step 4: Surveyor -->
+  <div class="setup-step" id="setup-step-4">
+    <div class="setup-progress">
+      <div class="setup-dot active"></div><div class="setup-dot active"></div><div class="setup-dot active"></div><div class="setup-dot active"></div>
+    </div>
+    <div class="setup-logo">👤</div>
+    <div class="setup-title">Who's Surveying Today?</div>
+    <div class="setup-sub">Your name is logged with every data point. Change it anytime from the survey bar.</div>
+    <div class="setup-label">Your Name</div>
+    <input class="setup-input" id="setup-surveyor" type="text" placeholder="e.g. Mike Johnson" autocomplete="off"/>
+    <button class="setup-next" onclick="setupComplete()">Start Surveying →</button>
+    <button class="setup-skip" onclick="setupComplete()">Skip for now</button>
+  </div>
+</div>
+
+<!-- STAFF MODAL -->
+<div id="staff-modal">
+  <div id="staff-box">
+    <h3>👤 Who is surveying?</h3>
+    <input id="staff-name-input" type="text" placeholder="Your name" autocomplete="off"/>
+    <button id="staff-save-btn" onclick="saveStaffName()">Save</button>
+    <button id="staff-cancel-btn" onclick="closeStaffModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- WiFi WARNING MODAL -->
+<div id="wifi-modal">
+  <div id="wifi-box">
+    <div class="wifi-icon">📡</div>
+    <h2>Disable WiFi for Best GPS Accuracy</h2>
+    <p>When WiFi is on, your iPhone may use nearby network signals for positioning instead of GPS satellites — reducing accuracy from ±4m to ±20–50m. On a 7.5ft survey grid, that's the difference between a precise heatmap and noise.</p>
+    <div class="wifi-steps">
+      1. Open iPhone <b>Settings</b><br/>
+      2. Tap <b>WiFi</b><br/>
+      3. Toggle <b>OFF</b><br/>
+      ✓ Your cellular connection handles weather just fine
+    </div>
+    <button id="wifi-dismiss" onclick="dismissWifi()">Got It — Start Surveying</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="modal-overlay">
+  <div id="modal-box">
+    <p>Delete this reading?</p>
+    <div class="mb-row">
+      <button id="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button id="modal-confirm" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════
+const STORAGE_KEY = 'golf_moisture_v14';
+const BOUNDARY_KEY = 'tip_boundaries_v1';
+const IRR_KEY = 'golf_irrigation_v1';
+const SETTINGS_KEY = 'tip_settings_v1';
+function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{};}catch{return{};}}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(allData));}
+function loadIrr(){try{return JSON.parse(localStorage.getItem(IRR_KEY))||[];}catch{return[];}}
+function persistIrr(){localStorage.setItem(IRR_KEY,JSON.stringify(irrData));}
+function loadSettings(){try{return JSON.parse(localStorage.getItem(SETTINGS_KEY))||{};}catch{return{};}}
+function saveSettings(s){localStorage.setItem(SETTINGS_KEY,JSON.stringify(s));}
+let allData = load();
+let irrData = loadIrr();
+let tipSettings = loadSettings();
+let currentLDSFlags = [];
+
+function sessionKey(g,d){return `${g}||${d}`;}
+function getPoints(g,d){return allData[sessionKey(g,d)]||[];}
+function curGreen(){return parseInt(greenSel.value);}
+function curDate(){return dateSel.value;}
+function curPoints(){return getPoints(curGreen(),curDate());}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function calcStats(pts){
+  const valued=pts.filter(p=>p.value!==null&&p.value!==undefined);
+  if(!valued.length)return null;
+  const v=valued.map(p=>p.value);
+  return{avg:+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1),min:Math.min(...v),max:Math.max(...v),count:pts.length,valuedCount:valued.length};
+}
+let toastTimer;
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.display='block';
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.style.display='none';},2400);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT SELECTORS
+// ═══════════════════════════════════════════════════════════
+const greenSel=document.getElementById('green-sel');
+const dateSel=document.getElementById('date-sel');
+const GREEN_LIST=[...Array.from({length:18},(_,i)=>({value:String(i+1),label:`Green ${i+1}`})),
+  {value:'PG1',label:'Putting Green 1'},{value:'PG2',label:'Putting Green 2'},{value:'PG3',label:'Putting Green 3'}];
+GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;greenSel.appendChild(o);});
+dateSel.value=todayStr();
+
+const trendGreenSel=document.getElementById('trend-green-sel');
+GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;trendGreenSel.appendChild(o);});
+
+greenSel.addEventListener('change',onSessionChange);
+dateSel.addEventListener('change',onSessionChange);
+
+// ═══════════════════════════════════════════════════════════
+// WEATHER (Open-Meteo — no API key)
+// ═══════════════════════════════════════════════════════════
+let lastWeather = null;
+
+async function fetchWeather(lat,lng){
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`;
+    const r=await fetch(url);
+    const d=await r.json();
+    const c=d.current;
+    lastWeather={
+      temp:Math.round(c.temperature_2m),
+      humidity:c.relative_humidity_2m,
+      wind:Math.round(c.wind_speed_10m),
+      rain:c.precipitation,
+      ts:new Date().toISOString()
+    };
+    renderWeatherBar(lastWeather);
+    return lastWeather;
+  }catch(e){
+    document.getElementById('wx-content').textContent='⚠ Weather unavailable';
+    return null;
+  }
+}
+
+function renderWeatherBar(wx){
+  if(!wx){return;}
+  document.getElementById('wx-content').innerHTML=
+    `<span class="wx-item">🌡 ${wx.temp}°F</span><span class="wx-sep">·</span>`+
+    `<span class="wx-item">💧 ${wx.humidity}%</span><span class="wx-sep">·</span>`+
+    `<span class="wx-item">💨 ${wx.wind}mph</span><span class="wx-sep">·</span>`+
+    `<span class="wx-item">🌧 ${wx.rain}"</span>`;
+  document.getElementById('weather-bar').classList.remove('loading');
+  updateETBar(wx);
+}
+
+// ─── ET PROMINENCE BAR ────────────────────────────────────────────────────
+function updateETBar(wx){
+  if(!wx) return;
+  const et=calcET(wx.temp,wx.humidity,wx.wind);
+  if(et===null) return;
+  const pctLoss=etToPctLoss(et);
+  const bar=document.getElementById('et-bar');
+  const label=document.getElementById('et-bar-label');
+  const detail=document.getElementById('et-bar-detail');
+
+  // Classify ET level
+  let level, icon, text;
+  if(et < 3){
+    level='et-normal'; icon='🌿'; text='Low stress';
+  } else if(et < 6){
+    level='et-elevated'; icon='☀️'; text='Elevated ET';
+  } else if(et < 9){
+    level='et-high'; icon='⚠️'; text='High ET';
+  } else {
+    level='et-extreme'; icon='🔥'; text='Extreme ET';
+  }
+
+  bar.className=level;
+  label.textContent=`${icon} ET ${et}mm/day · ~${pctLoss.toFixed(1)}%/day moisture loss`;
+
+  const t=getThresholds();
+  const optMid=((t.sd+t.sw)/2);
+  const hrsToVDry=pctLoss>0?((optMid-t.vd)/pctLoss*24).toFixed(0):'—';
+  detail.textContent=`${hrsToVDry}h until ${optMid.toFixed(0)}% green hits critical`;
+
+  // Also trigger thermal warning based on current temp
+  if(wx && wx.temp) checkThermalWarning(wx.temp);
+}
+
+// ─── LDS (LOCALIZED DRY SPOT) DETECTION ─────────────────────────────────
+// Algorithm: flag any point whose value is ≥15% below the average
+// of its 3–4 nearest neighbors (within 60ft), with at least 5 total pts.
+// This pattern indicates isolated hydrophobic soil, not uniform drying.
+
+const FT_PER_DEG_LAT = 364000;
+function ftBetween(p1, p2){
+  const dLat=(p1.lat-p2.lat)*FT_PER_DEG_LAT;
+  const dLng=(p1.lng-p2.lng)*FT_PER_DEG_LAT*Math.cos(((p1.lat+p2.lat)/2)*Math.PI/180);
+  return Math.sqrt(dLat*dLat+dLng*dLng);
+}
+
+function detectLDS(pts){
+  const valued=pts.filter(p=>p.value!==null);
+  if(valued.length<5) return [];
+
+  const flags=[];
+  valued.forEach(p=>{
+    // Find neighbors sorted by distance
+    const neighbors=valued
+      .filter(q=>q.id!==p.id)
+      .map(q=>({pt:q, dist:ftBetween(p,q)}))
+      .sort((a,b)=>a.dist-b.dist)
+      .filter(n=>n.dist<60)  // within 60 ft
+      .slice(0,4);           // up to 4 nearest
+
+    if(neighbors.length<3) return; // need at least 3 nearby pts
+
+    const neighborAvg=neighbors.reduce((s,n)=>s+n.pt.value,0)/neighbors.length;
+    const diff=neighborAvg-p.value;
+
+    if(diff>=15){
+      flags.push({
+        id:p.id,
+        value:p.value,
+        neighborAvg:parseFloat(neighborAvg.toFixed(1)),
+        diff:parseFloat(diff.toFixed(1)),
+        lat:p.lat,
+        lng:p.lng,
+        ts:p.ts
+      });
+    }
+  });
+  return flags;
+}
+
+// Store LDS flags on the session data (not persisted, recalculated each time)
+
+function runLDSAnalysis(){
+  const pts=curPoints();
+  currentLDSFlags=detectLDS(pts);
+  renderLDSPanel();
+  // Mark flags on points in coverage map (handled in renderCoverageMap)
+}
+
+function renderLDSPanel(){
+  const panel=document.getElementById('lds-panel');
+  const list=document.getElementById('lds-alerts-list');
+  if(!currentLDSFlags.length){
+    panel.style.display='none';
+    return;
+  }
+  panel.style.display='block';
+  list.innerHTML='';
+  currentLDSFlags.forEach(f=>{
+    const card=document.createElement('div');
+    card.className='lds-alert-card';
+    const time=new Date(f.ts).toLocaleTimeString();
+    card.innerHTML=
+      `<div class="la-head"><span class="lds-flag-dot"></span>`+
+      `Green ${curGreen()} — ${f.value}% reading (${f.diff}% below neighbors)</div>`+
+      `<div class="la-detail">`+
+        `Surrounding area avg: ${f.neighborAvg}% · Captured ${time}<br/>`+
+        `<b>Possible LDS (localized dry spot).</b> Recommend: wetting agent application, `+
+        `hand injection at this point, or soil probe to check hydrophobicity.<br/>`+
+        `📍 ${f.lat.toFixed(5)}, ${f.lng.toFixed(5)}`+
+      `</div>`;
+    list.appendChild(card);
+  });
+}
+
+// Run LDS in checkAlerts so it fires after every save
+const _origCheckAlerts=typeof checkAlerts==='function'?checkAlerts:null;
+
+// Load weather for current session if stored
+function loadStoredWeather(){
+  const key=sessionKey(curGreen(),curDate());
+  const pts=allData[key]||[];
+  if(pts.length&&pts[0].weather){renderWeatherBar(pts[0].weather);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// LIVE CAMERA + SINGLE-TAP CAPTURE
+// ═══════════════════════════════════════════════════════════
+let liveStream=null;
+let lastGPSCoords=null;   // continuously updated background GPS
+let gpsWatchId=null;
+let capturing=false;
+let gridOpen=false;
+
+// Start live camera stream when capture tab opens
+async function startLiveCamera(){
+  const video=document.getElementById('live-video');
+  const fallback=document.getElementById('cam-fallback');
+  if(liveStream){video.srcObject=liveStream;return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{exact:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    liveStream=stream;
+    video.srcObject=stream;
+    video.style.display='block';
+    fallback.style.display='none';
+  }catch(err){
+    // Fallback: try without exact facing mode (works in some browsers)
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+      liveStream=stream;
+      video.srcObject=stream;
+      video.style.display='block';
+      fallback.style.display='none';
+    }catch(err2){
+      video.style.display='none';
+      fallback.style.display='flex';
+      showToast('Camera unavailable — check Safari permissions');
+    }
+  }
+}
+
+function stopLiveCamera(){
+  if(liveStream){liveStream.getTracks().forEach(t=>t.stop());liveStream=null;}
+  if(gpsWatchId!=null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;}
+}
+
+// Background GPS watch — always tracking, no tap needed
+function startGPSWatch(){
+  if(!navigator.geolocation||gpsWatchId!=null)return;
+  document.getElementById('vf-gps-status').textContent='📍 Acquiring…';
+  let firstFix=true;
+  gpsWatchId=navigator.geolocation.watchPosition(
+    pos=>{
+      lastGPSCoords={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)};
+      const accColor=pos.coords.accuracy<8?'#5db85d':pos.coords.accuracy<15?'#d4c94a':'#e8923a';
+      document.getElementById('vf-gps-status').innerHTML=
+        `<span style="color:${accColor}">📍 ±${lastGPSCoords.acc}m</span>`;
+      // On first GPS fix: fly the map to current location if map is open and no data yet
+      if(firstFix){
+        firstFix=false;
+        if(map&&!curPoints().length){
+          map.setView([lastGPSCoords.lat,lastGPSCoords.lng],18);
+        }
+      }
+      // Fetch weather once on first fix
+      if(!lastWeather){
+        const key=sessionKey(curGreen(),curDate());
+        if(!(allData[key]&&allData[key].length)) fetchWeather(pos.coords.latitude,pos.coords.longitude);
+      }
+    },
+    err=>{document.getElementById('vf-gps-status').textContent='⚠ GPS error';},
+    {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
+  );
+}
+
+// Snap a frame from the live video
+function snapFrame(){
+  const video=document.getElementById('live-video');
+  const canvas=document.getElementById('snap-canvas');
+  canvas.width=video.videoWidth||640;
+  canvas.height=video.videoHeight||480;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  return canvas.toDataURL('image/jpeg',0.82);
+}
+
+// Compress image to target width
+function compressImage(dataUrl,maxW,quality,cb){
+  const img=new Image();
+  img.onload=()=>{
+    const scale=Math.min(1,maxW/img.width);
+    const c=document.createElement('canvas');
+    c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    cb(c.toDataURL('image/jpeg',quality));
+  };
+  img.src=dataUrl;
+}
+
+// ── THE MAIN CAPTURE ACTION ──
+async function doCapture(){
+  if(capturing)return;
+  if(!lastGPSCoords){showToast('⚠ Waiting for GPS fix…');return;}
+  capturing=true;
+
+  const btn=document.getElementById('capture-btn');
+  btn.classList.add('capturing');
+
+  // ON-DEMAND MODE: activate camera briefly before snapping
+  if(onDemandMode){
+    document.getElementById('cam-hint-text').textContent='⏳ Activating…';
+    document.getElementById('cam-hint-icon').textContent='📸';
+    await startLiveCamera();
+    const overlay=document.getElementById('cam-hint-overlay');
+    if(overlay) overlay.classList.remove('show'); // show live feed
+    document.getElementById('live-video').style.display='block';
+    await new Promise(r=>setTimeout(r,1500)); // 1.5s for auto-exposure
+  }
+
+  // 1. Flash effect
+  const flash=document.getElementById('flash-overlay');
+  flash.classList.add('flash');
+  setTimeout(()=>flash.classList.remove('flash'),200);
+
+  // 2. Snap frame from live video
+  const rawFrame=snapFrame();
+  const snapCanvas=document.getElementById('snap-canvas'); // keep ref for Tesseract
+
+  // 3. Freeze frame
+  const frozen=document.getElementById('frozen-frame');
+  frozen.src=rawFrame;
+  frozen.style.display='block';
+
+  // ON-DEMAND: stop camera right after snap to save heat
+  if(onDemandMode){
+    stopLiveCamera();
+    document.getElementById('live-video').style.display='none';
+    const overlay=document.getElementById('cam-hint-overlay');
+    if(overlay){overlay.classList.add('show');}
+    document.getElementById('cam-hint-text').textContent='Tap ● to capture';
+    document.getElementById('cam-hint-icon').textContent='📷';
+  }
+
+  // 4. Compress photo
+  compressImage(rawFrame,900,0.80,async compressed=>{
+
+    // 4a. Run OCR (Tesseract or Claude based on mode)
+    let aiValue=null;
+    const activeMode=ocrMode||tipSettings.ocrMode||'off';
+    if(activeMode!=='off'){
+      const ocrOverlay=document.getElementById('ai-overlay');
+      const ocrLabel=document.getElementById('ai-reading-label');
+      if(ocrOverlay) ocrOverlay.classList.add('active');
+      if(ocrLabel) ocrLabel.textContent=activeMode==='tesseract'?'Tesseract reading…':'Claude reading…';
+      aiValue=await runMeterOCR(snapCanvas, compressed);
+      if(ocrOverlay) ocrOverlay.classList.remove('active');
+    }
+
+    // 5. Lock GPS coords at moment of capture
+    const coords={...lastGPSCoords};
+
+    // 6. Save data point
+    const key=sessionKey(curGreen(),curDate());
+    const isFirst=!(allData[key]&&allData[key].length);
+    const pt={
+      id:Date.now(),
+      lat:coords.lat,lng:coords.lng,acc:coords.acc,
+      value:aiValue!==null?aiValue:null,
+      ts:new Date().toISOString(),
+      photo:compressed,
+      weather:isFirst?(lastWeather||null):undefined,
+      needsValue:aiValue===null,
+      aiRead:aiValue!==null,
+      surveyorName:tipSettings.surveyorName||null,
+      surveyMode:surveyMode
+    };
+    allData[key]=[...(allData[key]||[]),pt];
+    persist();
+    showUndoButton(pt.id);
+
+    // 7. Fetch weather on first point
+    if(isFirst&&!lastWeather) await fetchWeather(coords.lat,coords.lng);
+
+    // 8. Update UI
+    updateLiveStrip();
+    updateHeaderStats();
+    checkAlerts();
+    renderCoverageMap();
+    updateSurveyProgress();
+    runLDSAnalysis();
+
+    const ptCount=(allData[key]||[]).length;
+    const fb=document.getElementById('capture-feedback');
+    if(aiValue!==null){
+      fb.textContent=`✓ Point ${ptCount} — AI read: ${aiValue}%  ·  ±${coords.acc}m`;
+      fb.style.color='var(--green)';
+      showToast(`🤖 AI read ${aiValue}% (${mLabel(aiValue)})`);
+    } else {
+      fb.textContent=`✓ Point ${ptCount} captured  ·  ±${coords.acc}m${hasAPIKey()?'':' — enter value in History'}`;
+      fb.style.color=hasAPIKey()?'#e8b83a':'var(--green)';
+    }
+
+    document.getElementById('vf-pt-count').textContent=ptCount+' pts';
+
+    // 9. Unfreeze after delay (longer if AI was running)
+    const unfreezeDelay=aiValue!==null?800:1200;
+    setTimeout(()=>{
+      frozen.style.display='none';
+      frozen.src='';
+      btn.classList.remove('capturing');
+      capturing=false;
+      // On-demand: overlay already shown from post-snap step above
+    },unfreezeDelay);
+  });
+}
+
+// Grid estimator toggle
+function toggleGrid(){
+  gridOpen=!gridOpen;
+  document.getElementById('grid-estimator').style.display=gridOpen?'block':'none';
+  document.getElementById('grid-arrow').textContent=gridOpen?'▴':'▾';
+}
+
+// Update the live stats strip in capture bottom
+function updateLiveStrip(){
+  const pts=curPoints().filter(p=>p.value!==null);
+  const allPts=curPoints();
+  document.getElementById('ls-cnt').textContent=allPts.length;
+  if(!pts.length){
+    document.getElementById('ls-avg').textContent='—';
+    document.getElementById('ls-last').textContent='—';
+    document.getElementById('ls-min').textContent='—';
+    return;
+  }
+  const vals=pts.map(p=>p.value);
+  const avg=(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+  const last=pts[pts.length-1].value;
+  const min=Math.min(...vals);
+  const avgEl=document.getElementById('ls-avg');
+  avgEl.textContent=avg+'%';avgEl.style.color=mColor(parseFloat(avg));
+  const lastEl=document.getElementById('ls-last');
+  lastEl.textContent=last+'%';lastEl.style.color=mColor(last);
+  const minEl=document.getElementById('ls-min');
+  minEl.textContent=min+'%';minEl.style.color=mColor(min);
+}
+
+// Stub: resetCameraUI no longer needed but keep for compat
+function resetCameraUI(){}
+function clearPhoto(){}
+function openCamera(){}
+
+// Photo viewer modal
+function openPhotoModal(src, meta){
+  document.getElementById('photo-modal-img').src=src;
+  document.getElementById('photo-modal-meta').textContent=meta||'';
+  document.getElementById('photo-modal').classList.add('open');
+}
+function closePhotoModal(){
+  document.getElementById('photo-modal').classList.remove('open');
+  document.getElementById('photo-modal-img').src='';
+}
+
+// ═══════════════════════════════════════════════════════════
+// EDIT READING MODAL
+// ═══════════════════════════════════════════════════════════
+let editingId=null;
+
+function openEditModal(id){
+  // Find the point across all sessions
+  let pt=null;
+  Object.values(allData).forEach(pts=>{ const f=pts.find(p=>p.id===id); if(f)pt=f; });
+  if(!pt)return;
+  editingId=id;
+
+  // Photo
+  const prev=document.getElementById('edit-photo-preview');
+  const placeholder=document.getElementById('edit-photo-placeholder');
+  if(pt.photo){
+    prev.src=pt.photo;
+    prev.style.display='block';
+    placeholder.style.display='none';
+  } else {
+    prev.style.display='none';
+    placeholder.style.display='flex';
+  }
+
+  // Meta info
+  const ts=new Date(pt.ts);
+  document.getElementById('edit-meta-text').innerHTML=
+    `📍 ${pt.lat.toFixed(5)}, ${pt.lng.toFixed(5)}<br/>`+
+    `🕐 ${ts.toLocaleDateString()} ${ts.toLocaleTimeString()}<br/>`+
+    (pt.value!==null?`Current value: <b style="color:${mColor(pt.value)}">${pt.value}% — ${mLabel(pt.value)}</b>`:'<b style="color:#e8b83a">No value recorded yet</b>');
+
+  // Pre-fill current value
+  document.getElementById('edit-value-input').value = pt.value!==null ? pt.value : '';
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('edit-value-input').focus(),150);
+}
+
+function setEditQuick(val){
+  document.getElementById('edit-value-input').value=val;
+}
+
+function closeEditModal(){
+  editingId=null;
+  document.getElementById('edit-modal').classList.remove('open');
+  document.getElementById('edit-photo-preview').src='';
+}
+
+function saveEdit(){
+  const raw=document.getElementById('edit-value-input').value;
+  const v=parseFloat(raw);
+  if(raw===''||isNaN(v)||v<0||v>100){
+    document.getElementById('edit-value-input').style.borderColor='#c04040';
+    setTimeout(()=>document.getElementById('edit-value-input').style.borderColor='',1000);
+    return;
+  }
+  Object.keys(allData).forEach(key=>{
+    const idx=allData[key].findIndex(p=>p.id===editingId);
+    if(idx>=0){
+      allData[key][idx].value=v;
+      allData[key][idx].needsValue=false;
+      persist();
+    }
+  });
+  closeEditModal();
+  updateLiveStrip();
+  updateCaptureStats();
+  updateHeaderStats();
+  checkAlerts();
+  if(currentTab==='map')refreshMap();
+  if(currentTab==='history')renderHistory();
+  showToast(`Updated to ${v}% — ${mLabel(v)}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRID ESTIMATOR
+// ═══════════════════════════════════════════════════════════
+function calcGrid(){
+  const sqft=parseFloat(document.getElementById('sqft-input').value);
+  const res=document.getElementById('ge-result');
+  if(!sqft||sqft<100){res.style.display='none';return;}
+  // 3-pace interval ≈ 7.5 ft, grid spacing
+  const pace3=7.5, pace2=5;
+  const pts3=Math.round(sqft/(pace3*pace3));
+  const pts2=Math.round(sqft/(pace2*pace2));
+  const time3=Math.ceil(pts3*0.4); // ~24 sec/point
+  const time2=Math.ceil(pts2*0.4);
+  res.style.display='block';
+  res.innerHTML=
+    `At <b>3-pace (~7.5 ft)</b> intervals: <b>~${pts3} points</b> · ~${time3} min<br/>`+
+    `At <b>2-pace (~5 ft)</b> intervals: <b>~${pts2} points</b> · ~${time2} min<br/>`+
+    `<span style="color:var(--muted);font-size:9px;">Walk in parallel rows across the green</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRY SPOT ALERTS
+// ═══════════════════════════════════════════════════════════
+function checkAlerts(){
+  const bar=document.getElementById('alerts-bar');
+  const alerts=[];
+
+  // Check all greens for moisture drop and dry spot
+  GREEN_LIST.forEach(g=>{
+    const gv=String(g.value);
+    const dates=Object.keys(allData)
+      .filter(k=>k.startsWith(`${gv}||`)&&allData[k].length>0)
+      .map(k=>k.split('||')[1]).sort();
+    if(dates.length<1)return;
+    const latest=dates[dates.length-1];
+    const s1=calcStats(getPoints(g.value,latest));
+    if(!s1)return;
+
+    // Grass-specific dry threshold
+    const t=getThresholds(g.value);
+    const dryAlert=t.d; // "Dry" zone lower bound = Very Dry upper bound
+
+    // Drop alert (needs 2 sessions)
+    if(dates.length>=2){
+      const s2=calcStats(getPoints(g.value,dates[dates.length-2]));
+      if(s2){
+        const drop=s2.avg-s1.avg;
+        if(drop>=10) alerts.push(`${g.label}: avg dropped ${drop.toFixed(1)}% since ${dates[dates.length-2]} → now ${s1.avg}%`);
+      }
+    }
+
+    // Dry spot alert (grass-specific threshold)
+    if(s1.min!==null&&s1.min<dryAlert){
+      alerts.push(`${g.label}: min reading ${s1.min}% (below ${dryAlert}% ${GRASS_TYPES[getGrassKey(g.value)]?.short||''} dry threshold)`);
+    }
+  });
+
+  // LDS alerts for current green session
+  if(currentLDSFlags&&currentLDSFlags.length){
+    currentLDSFlags.forEach(f=>{
+      alerts.push(`Green ${curGreen()}: Possible LDS — isolated ${f.value}% reading (${f.diff}% below neighbors)`);
+    });
+  }
+
+  if(alerts.length){
+    bar.style.display='block';
+    bar.innerHTML=alerts.map(a=>`<div class="alert-item">⚠ ${a}</div>`).join('');
+    const hTab=document.querySelector('[data-tab="history"]');
+    if(hTab&&!hTab.querySelector('.alert-badge')){
+      const b=document.createElement('span');b.className='alert-badge';b.textContent=alerts.length;
+      hTab.appendChild(b);
+    }
+  } else {
+    bar.style.display='none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CAPTURE STATS
+// ═══════════════════════════════════════════════════════════
+function updateCaptureStats(){
+  const pts=curPoints();
+  const s=calcStats(pts);
+  const panel=document.getElementById('current-stats');
+  if(!s){panel.style.display='none';return;}
+  panel.style.display='block';
+  document.getElementById('stats-label').textContent=`Green ${curGreen()} · ${curDate()}`;
+  ['avg','min','max'].forEach(k=>{
+    const el=document.getElementById(`st-${k}`);
+    el.textContent=s[k]+'%';
+    el.style.color=mColor(parseFloat(s[k]));
+  });
+  document.getElementById('st-cnt').textContent=s.count;
+  const rr=document.getElementById('recent-readings');
+  rr.innerHTML='';
+  [...pts].reverse().slice(0,5).forEach(p=>{
+    const d=document.createElement('div');d.className='reading-row';
+    const hasVal=p.value!==null;
+    const valColor=hasVal?mColor(p.value):'#e8b83a';
+    const valText=hasVal?`${p.value}%`:'?%';
+    const labelText=hasVal?mLabel(p.value):'Tap ✏ to enter';
+    const thumbHtml=p.photo
+      ?`<img class="r-thumb" src="${p.photo}" onclick="openPhotoModal('${p.photo}','${valText} · ${new Date(p.ts).toLocaleTimeString()}')" alt="meter"/>`
+      :'';
+    d.innerHTML=
+      `<div class="r-dot" style="background:${valColor}"></div>`+
+      `<div class="r-val" style="color:${valColor}">${valText}</div>`+
+      `<div class="r-meta">${labelText}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>`+
+      thumbHtml+
+      `<button style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;flex-shrink:0;" onclick="openEditModal(${p.id})">✏</button>`+
+      `<button class="r-del" onclick="promptDelete(${p.id})">✕</button>`;
+    rr.appendChild(d);
+  });
+}
+
+function updateHeaderStats(){
+  const all=Object.values(allData).reduce((a,b)=>a+b.length,0);
+  const sess=Object.keys(allData).filter(k=>allData[k].length>0).length;
+  document.getElementById('hdr-pts').textContent=all+' pts';
+  document.getElementById('hdr-sessions').textContent=sess+' sessions';
+}
+
+function onSessionChange(){
+  updateCaptureStats();
+  loadStoredWeather();
+  renderCoverageMap();
+  updateNextGreenBtn();
+  currentLDSFlags=[];
+  runLDSAnalysis();
+  if(currentTab==='map')refreshMap();
+  if(currentTab==='trend')renderTrend();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════════
+let currentTab='capture';
+let mapInitialized=false;
+
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  ['dashboard','capture','map','trend','intelligence','history','sprinklers','export'].forEach(t=>{
+    const el=document.getElementById(`panel-${t}`);
+    if(el){el.classList.remove('active');el.style.display='none';}
+  });
+  const el=document.getElementById(`panel-${tab}`);
+  if(!el)return;
+  el.classList.add('active');
+
+  if(tab==='capture'){
+    el.style.display='flex';
+    startLiveCamera();
+    startGPSWatch();
+    requestWakeLock();
+    updateLiveStrip();
+    const pts=curPoints();
+    document.getElementById('vf-pt-count').textContent=pts.length+' pts';
+  } else {
+    stopLiveCamera();
+    releaseWakeLock();
+    if(tab==='dashboard'){
+      el.style.display='block';
+      renderDashboard();
+    } else if(tab==='map'){
+      el.style.display='flex';
+      if(!mapInitialized)initMap();else refreshMap();
+      renderBoundaryLayer(curGreen());
+    } else if(tab==='intelligence'){
+      el.style.display='block';
+      updateETDisplay();
+      buildPredictions();
+      renderIrrList();
+    } else {
+      el.style.display='block';
+      if(tab==='trend')renderTrend();
+      if(tab==='history')renderHistory();
+      if(tab==='export')renderExport();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEAFLET MAP
+// ═══════════════════════════════════════════════════════════
+let map,heatLayer,pinsLayer,satLayer,streetLayer;
+let showHeat=true,showPins=false,isSat=true;
+
+function initMap(){
+  mapInitialized=true;
+  // Default to GPS if available, otherwise US center
+  const initLat=lastGPSCoords?.lat||40;
+  const initLng=lastGPSCoords?.lng||-95;
+  const initZoom=lastGPSCoords?18:4;
+  map=L.map('leaflet-map',{zoomControl:true,attributionControl:false}).setView([initLat,initLng],initZoom);
+  streetLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:22});
+  satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22});
+  satLayer.addTo(map);
+  pinsLayer=L.layerGroup().addTo(map);
+  map.on('click',onMapClick);
+  refreshMap();
+}
+
+function refreshMap(){
+  if(!map)return;
+  const pts=curPoints();
+  if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
+  pinsLayer.clearLayers();
+  if(!pts.length){
+    // No data yet — zoom to current GPS if available, stay put otherwise
+    if(lastGPSCoords){
+      map.setView([lastGPSCoords.lat,lastGPSCoords.lng],18);
+    }
+    return;
+  }
+  const bounds=L.latLngBounds(pts.map(p=>[p.lat,p.lng]));
+  map.fitBounds(bounds,{padding:[40,40],maxZoom:20});
+  heatLayer=L.heatLayer(pts.filter(p=>p.value!==null).map(p=>[p.lat,p.lng,p.value/100]),{
+    radius:18,blur:22,maxZoom:21,max:1.0,
+    gradient:{'0.0':'#2a4fa8','0.2':'#3a82c8','0.35':'#4ab3b8','0.45':'#5cb85c','0.55':'#d4c94a','0.7':'#e8923a','1.0':'#e05c3a'}
+  });
+  if(showHeat)heatLayer.addTo(map);
+  pts.forEach(p=>{
+    const c=p.value!==null?mColor(p.value):'#555';
+    const pinLabel=p.value!==null?p.value:(p.photo?'📷':'?');
+    const icon=L.divIcon({className:'',
+      html:`<div style="width:28px;height:28px;border-radius:50%;background:${c};border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;font-family:monospace;box-shadow:0 1px 4px rgba(0,0,0,.5);">${pinLabel}</div>`,
+      iconSize:[28,28],iconAnchor:[14,14]});
+    const m=L.marker([p.lat,p.lng],{icon});
+    const valStr=p.value!==null?`${p.value}% — ${mLabel(p.value)}`:'📷 Photo only — value pending';
+    const photoBtn=p.photo?`<br/><button onclick="openPhotoModal('${p.photo}','${p.value!==null?p.value+'%':'?'} · Green ${curGreen()} · ${new Date(p.ts).toLocaleTimeString()}')" style="margin-top:5px;font-size:10px;color:#4ab3b8;background:none;border:1px solid #4ab3b8;border-radius:4px;padding:2px 7px;cursor:pointer;">📷 View Photo</button>`:'';
+    m.bindPopup(`<div style="font-family:monospace;font-size:12px;min-width:150px;"><b style="color:${c};font-size:13px;">${valStr}</b><br/><span style="color:#666;font-size:9px;">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span><br/><span style="color:#888;font-size:9px;">${new Date(p.ts).toLocaleTimeString()}</span>${photoBtn}<br/><div style="display:flex;gap:5px;margin-top:5px;"><button onclick="openEditModal(${p.id})" style="flex:1;font-size:10px;color:#5db85d;background:none;border:1px solid #3a7a3a;border-radius:4px;padding:3px 0;cursor:pointer;">✏ Edit</button><button onclick="promptDelete(${p.id})" style="flex:1;font-size:10px;color:#c04040;background:none;border:1px solid #c04040;border-radius:4px;padding:3px 0;cursor:pointer;">✕ Del</button></div></div>`);
+    pinsLayer.addLayer(m);
+    if(!showPins)return;
+  });
+  if(showPins)pinsLayer.addTo(map);
+  setTimeout(()=>map.invalidateSize(),100);
+}
+
+function toggleLayer(which){
+  if(!map)return;
+  if(which==='heat'){
+    showHeat=!showHeat;
+    document.getElementById('btn-heat').classList.toggle('active-ctrl',showHeat);
+    if(showHeat&&heatLayer)heatLayer.addTo(map);else if(heatLayer)map.removeLayer(heatLayer);
+  }
+  if(which==='pins'){
+    showPins=!showPins;
+    document.getElementById('btn-pins').classList.toggle('active-ctrl',showPins);
+    if(showPins)pinsLayer.addTo(map);else map.removeLayer(pinsLayer);
+  }
+}
+function toggleSat(){
+  isSat=!isSat;
+  document.getElementById('btn-sat').classList.toggle('active-ctrl',isSat);
+  if(isSat){map.removeLayer(streetLayer);satLayer.addTo(map);}
+  else{map.removeLayer(satLayer);streetLayer.addTo(map);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREND CHARTS (native Canvas)
+// ═══════════════════════════════════════════════════════════
+function renderTrend(){
+  const g=parseInt(trendGreenSel.value);
+  const keys=Object.keys(allData)
+    .filter(k=>k.startsWith(`${g}||`)&&allData[k].length>0)
+    .sort();
+  const emptyEl=document.getElementById('trend-empty');
+  const wrapEl=document.getElementById('trend-canvas-wrap');
+  const wxWrapEl=document.getElementById('weather-chart-wrap');
+
+  if(keys.length<1){
+    emptyEl.style.display='block';
+    wrapEl.style.display='none';
+    wxWrapEl.style.display='none';
+    return;
+  }
+  emptyEl.style.display='none';
+  wrapEl.style.display='block';
+  wxWrapEl.style.display='block';
+
+  const dates=keys.map(k=>k.split('||')[1]);
+  const avgs=keys.map(k=>calcStats(allData[k]).avg);
+  const mins=keys.map(k=>calcStats(allData[k]).min);
+  const maxs=keys.map(k=>calcStats(allData[k]).max);
+  const wxData=keys.map(k=>{
+    const pts=allData[k];
+    const wx=pts.find(p=>p.weather)?.weather||null;
+    return wx;
+  });
+
+  drawMoistureTrend('trend-canvas',dates,avgs,mins,maxs);
+  drawWeatherChart('weather-canvas',dates,wxData);
+}
+
+function drawMoistureTrend(canvasId,dates,avgs,mins,maxs){
+  const canvas=document.getElementById(canvasId);
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth-20;
+  canvas.height=180;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const PAD={top:16,right:12,bottom:36,left:36};
+  const cW=W-PAD.left-PAD.right;
+  const cH=H-PAD.top-PAD.bottom;
+  ctx.clearRect(0,0,W,H);
+
+  const allVals=[...avgs,...mins,...maxs,0,100];
+  const dataMin=Math.max(0,Math.min(...allVals)-5);
+  const dataMax=Math.min(100,Math.max(...allVals)+5);
+
+  function xp(i){return PAD.left+(i/(Math.max(dates.length-1,1)))*cW;}
+  function yp(v){return PAD.top+(1-(v-dataMin)/(dataMax-dataMin))*cH;}
+
+  // Grid lines
+  ctx.strokeStyle='#1c3a1c';ctx.lineWidth=1;
+  [25,40,55,75].forEach(v=>{
+    if(v<dataMin||v>dataMax)return;
+    ctx.beginPath();ctx.moveTo(PAD.left,yp(v));ctx.lineTo(PAD.left+cW,yp(v));ctx.stroke();
+    ctx.fillStyle='#3a5a3a';ctx.font='9px monospace';ctx.textAlign='right';
+    ctx.fillText(v+'%',PAD.left-4,yp(v)+3);
+  });
+
+  // Dry threshold line
+  if(25>=dataMin&&25<=dataMax){
+    ctx.strokeStyle='#6a2a0a';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(PAD.left,yp(25));ctx.lineTo(PAD.left+cW,yp(25));ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if(dates.length<2){
+    // Single point — just draw a dot
+    ctx.beginPath();ctx.arc(xp(0),yp(avgs[0]),5,0,Math.PI*2);
+    ctx.fillStyle='#5cb85c';ctx.fill();
+    ctx.fillStyle='#7a9a7a';ctx.font='9px monospace';ctx.textAlign='center';
+    ctx.fillText(dates[0],xp(0),H-PAD.bottom+14);
+    return;
+  }
+
+  // Min-Max band
+  ctx.beginPath();
+  ctx.moveTo(xp(0),yp(maxs[0]));
+  maxs.forEach((v,i)=>ctx.lineTo(xp(i),yp(v)));
+  [...mins].reverse().forEach((v,i)=>ctx.lineTo(xp(mins.length-1-i),yp(v)));
+  ctx.closePath();
+  ctx.fillStyle='rgba(58,130,200,0.15)';ctx.fill();
+
+  // Min line
+  ctx.beginPath();ctx.strokeStyle='rgba(58,130,200,0.4)';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+  mins.forEach((v,i)=>i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v)));
+  ctx.stroke();ctx.setLineDash([]);
+
+  // Max line
+  ctx.beginPath();ctx.strokeStyle='rgba(58,130,200,0.4)';ctx.lineWidth=1;ctx.setLineDash([3,2]);
+  maxs.forEach((v,i)=>i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v)));
+  ctx.stroke();ctx.setLineDash([]);
+
+  // Avg line
+  ctx.beginPath();ctx.strokeStyle='#5cb85c';ctx.lineWidth=2.5;
+  avgs.forEach((v,i)=>i===0?ctx.moveTo(xp(i),yp(v)):ctx.lineTo(xp(i),yp(v)));
+  ctx.stroke();
+
+  // Avg dots + labels
+  avgs.forEach((v,i)=>{
+    ctx.beginPath();ctx.arc(xp(i),yp(v),4,0,Math.PI*2);
+    ctx.fillStyle=mColor(v);ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle='#cce0cc';ctx.font='bold 9px monospace';ctx.textAlign='center';
+    ctx.fillText(v+'%',xp(i),yp(v)-8);
+  });
+
+  // X-axis date labels (show every nth if crowded)
+  const step=Math.ceil(dates.length/6);
+  ctx.fillStyle='#3d5e3d';ctx.font='9px monospace';ctx.textAlign='center';
+  dates.forEach((d,i)=>{
+    if(i%step===0||i===dates.length-1){
+      const label=d.slice(5); // MM-DD
+      ctx.fillText(label,xp(i),H-PAD.bottom+14);
+    }
+  });
+}
+
+function drawWeatherChart(canvasId,dates,wxData){
+  const canvas=document.getElementById(canvasId);
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth-20;
+  canvas.height=120;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  const PAD={top:12,right:12,bottom:28,left:36};
+  const cW=W-PAD.left-PAD.right;
+  const cH=H-PAD.top-PAD.bottom;
+  ctx.clearRect(0,0,W,H);
+
+  const hasWx=wxData.some(w=>w!==null);
+  if(!hasWx){
+    ctx.fillStyle='#3d5e3d';ctx.font='11px monospace';ctx.textAlign='center';
+    ctx.fillText('Weather data captured on next survey',W/2,H/2);
+    return;
+  }
+
+  const temps=wxData.map(w=>w?w.temp:null);
+  const hums=wxData.map(w=>w?w.humidity:null);
+  const rains=wxData.map(w=>w?w.rain:null);
+  const validTemps=temps.filter(v=>v!==null);
+  const tMin=Math.min(...validTemps)-5,tMax=Math.max(...validTemps)+5;
+
+  function xp(i){return PAD.left+(i/(Math.max(dates.length-1,1)))*cW;}
+  function yTemp(v){return PAD.top+(1-(v-tMin)/(tMax-tMin))*cH;}
+  function yHum(v){return PAD.top+(1-v/100)*cH;}
+
+  // Grid
+  ctx.strokeStyle='#1c3a1c';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(PAD.left,PAD.top+cH/2);ctx.lineTo(PAD.left+cW,PAD.top+cH/2);ctx.stroke();
+
+  function drawLine(data,color,yFn){
+    ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.8;
+    let started=false;
+    data.forEach((v,i)=>{
+      if(v===null)return;
+      if(!started){ctx.moveTo(xp(i),yFn(v));started=true;}
+      else ctx.lineTo(xp(i),yFn(v));
+    });
+    ctx.stroke();
+    data.forEach((v,i)=>{
+      if(v===null)return;
+      ctx.beginPath();ctx.arc(xp(i),yFn(v),3,0,Math.PI*2);
+      ctx.fillStyle=color;ctx.fill();
+    });
+  }
+
+  drawLine(temps,'#e8b83a',yTemp);
+  drawLine(hums,'#3a82c8',yHum);
+
+  // Rain bars
+  const maxRain=Math.max(...rains.filter(v=>v!==null),0.1);
+  rains.forEach((v,i)=>{
+    if(v===null||v===0)return;
+    const bH=Math.max(2,(v/maxRain)*(cH*0.4));
+    ctx.fillStyle='rgba(122,74,184,0.7)';
+    ctx.fillRect(xp(i)-4,PAD.top+cH-bH,8,bH);
+  });
+
+  // Y labels
+  ctx.fillStyle='#e8b83a';ctx.font='9px monospace';ctx.textAlign='right';
+  ctx.fillText(Math.round(tMax)+'°',PAD.left-3,PAD.top+8);
+  ctx.fillText(Math.round(tMin)+'°',PAD.left-3,PAD.top+cH);
+
+  // X labels
+  const step=Math.ceil(dates.length/6);
+  ctx.fillStyle='#3d5e3d';ctx.font='9px monospace';ctx.textAlign='center';
+  dates.forEach((d,i)=>{
+    if(i%step===0||i===dates.length-1) ctx.fillText(d.slice(5),xp(i),H-PAD.bottom+14);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════════════════
+function renderHistory(){
+  const el=document.getElementById('history-content');
+  const keys=Object.keys(allData).filter(k=>allData[k].length>0).sort().reverse();
+  if(!keys.length){el.innerHTML='<div class="empty-state">No data yet.<br/>Head to Capture to start mapping.</div>';return;}
+  el.innerHTML='';
+
+  keys.forEach(key=>{
+    const [g,...dp]=key.split('||');const date=dp.join('||');
+    const pts=allData[key];
+    const wx=pts.find(p=>p.weather)?.weather;
+    const valuedPts=pts.filter(p=>p.value!==null);
+    const pendingPts=pts.filter(p=>p.needsValue||p.value===null);
+    const sv=valuedPts.length?calcStats(valuedPts):null;
+    const photoPts=pts.filter(p=>p.photo);
+
+    const card=document.createElement('div');
+    card.className='session-card';
+    card.style.cursor='default';
+
+    // Photo strip
+    const photoStrip=photoPts.length
+      ?`<div style="display:flex;gap:5px;margin-top:7px;overflow-x:auto;padding-bottom:2px;">`+
+        photoPts.slice(0,6).map(p=>{
+          const vl=p.value!==null?`${p.value}%`:'?%';
+          return `<div style="position:relative;flex-shrink:0;" onclick="event.stopPropagation();">`+
+            `<img src="${p.photo}" style="width:48px;height:48px;border-radius:4px;object-fit:cover;border:1px solid ${p.value===null?'#6a4a00':'#254545'};cursor:pointer;display:block;" onclick="openPhotoModal('${p.photo}','${vl} · Green ${g} · ${date}')"/>`+
+            `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.65);text-align:center;font-size:9px;color:${p.value===null?'#e8b83a':'#5db85d'};border-radius:0 0 4px 4px;padding:1px 0;">${vl}</div>`+
+            `</div>`;
+        }).join('')+
+        (photoPts.length>6?`<div style="width:48px;height:48px;border-radius:4px;background:#0d2020;border:1px solid #254545;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ab3b8;flex-shrink:0;">+${photoPts.length-6}</div>`:'')+
+        `</div>`:'' ;
+
+    const pendingBadge=pendingPts.length
+      ?`<span style="background:#3a2000;color:#e8b83a;border:1px solid #6a4000;border-radius:4px;font-size:9px;padding:1px 6px;margin-left:6px;">⏳ ${pendingPts.length} pending</span>`:'';
+
+    card.innerHTML=
+      `<div class="sc-head" style="cursor:pointer;" onclick="toggleSessionExpand(this)">
+        <span class="sc-green">Green ${g} ${pendingBadge}</span>
+        <span style="display:flex;align-items:center;gap:8px;">
+          <span class="sc-date">${date} · ${pts.length} pts${photoPts.length?` · 📷${photoPts.length}`:''}</span>
+          <span class="expand-arrow" style="color:var(--muted);font-size:11px;">▾</span>
+        </span>
+      </div>`+
+      (sv
+        ?`<div class="sc-stats"><span>Avg <b style="color:${mColor(sv.avg)}">${sv.avg}%</b></span><span>Min <b style="color:${mColor(sv.min)}">${sv.min}%</b></span><span>Max <b style="color:${mColor(sv.max)}">${sv.max}%</b></span></div>`
+        :`<div class="sc-stats" style="color:var(--muted);">No values recorded yet</div>`)+
+      (wx?`<div class="sc-wx">🌡${wx.temp}°F · 💧${wx.humidity}% · 💨${wx.wind}mph · 🌧${wx.rain}"</div>`:'')+
+      photoStrip+
+      // Map button
+      `<div style="display:flex;gap:7px;margin-top:8px;" onclick="event.stopPropagation();">
+        <button onclick="greenSel.value='${g}';dateSel.value='${date}';onSessionChange();switchTab('map');" style="flex:1;padding:7px;background:var(--bg);border:1px solid var(--border2);color:var(--text2);border-radius:5px;font-family:var(--font);font-size:11px;cursor:pointer;">🗺 View on Map</button>
+      </div>`+
+      // Expandable points list
+      `<div class="session-points" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">`+
+      pts.map(p=>{
+        const hasVal=p.value!==null;
+        const vc=hasVal?mColor(p.value):'#e8b83a';
+        const vt=hasVal?`${p.value}%`:'?%';
+        const ts=new Date(p.ts).toLocaleTimeString();
+        const thumbHtml=p.photo?`<img src="${p.photo}" style="width:32px;height:32px;border-radius:3px;object-fit:cover;cursor:pointer;border:1px solid var(--border);" onclick="openPhotoModal('${p.photo}','${vt}')"/>` :'';
+        return `<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);">
+          <div style="width:8px;height:8px;border-radius:50%;background:${vc};flex-shrink:0;"></div>
+          <div style="font-size:13px;font-weight:700;color:${vc};min-width:34px;">${vt}</div>
+          <div style="flex:1;font-size:9px;color:var(--muted);line-height:1.6;">${ts}<br/>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div>
+          ${thumbHtml}
+          <button onclick="openEditModal(${p.id})" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;flex-shrink:0;">✏</button>
+          <button onclick="promptDelete(${p.id})" style="background:none;border:none;color:#7a3030;cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0;">✕</button>
+        </div>`;
+      }).join('')+
+      `</div>`;
+
+    el.appendChild(card);
+  });
+}
+
+function toggleSessionExpand(headerEl){
+  const card=headerEl.closest('.session-card');
+  const pointsList=card.querySelector('.session-points');
+  const arrow=headerEl.querySelector('.expand-arrow');
+  const open=pointsList.style.display==='none';
+  pointsList.style.display=open?'block':'none';
+  arrow.textContent=open?'▴':'▾';
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════
+function renderExport(){
+  const keys=Object.keys(allData).filter(k=>allData[k].length>0);
+  const totalPts=keys.reduce((a,k)=>a+allData[k].length,0);
+  const greens=new Set(keys.map(k=>k.split('||')[0])).size;
+  document.getElementById('exp-sessions').textContent=keys.length;
+  document.getElementById('exp-pts').textContent=totalPts;
+  document.getElementById('exp-greens').textContent=greens;
+}
+
+function exportCSV(){
+  const rows=[['Date','Green','Latitude','Longitude','Moisture%','Category','Temp_F','Humidity%','Wind_mph','Rain_in','Timestamp']];
+  Object.entries(allData).forEach(([key,pts])=>{
+    const [g,...dp]=key.split('||');const date=dp.join('||');
+    const wx=pts.find(p=>p.weather)?.weather;
+    pts.forEach(p=>rows.push([
+      date,g,p.lat.toFixed(7),p.lng.toFixed(7),p.value,mLabel(p.value),
+      wx?wx.temp:'',wx?wx.humidity:'',wx?wx.wind:'',wx?wx.rain:'',p.ts
+    ]));
+  });
+  dlFile('moisture_'+todayStr()+'.csv',rows.map(r=>r.join(',')).join('\n'),'text/csv');
+  showToast('CSV downloaded');
+}
+function exportJSON(){dlFile('moisture_backup_'+todayStr()+'.json',JSON.stringify(allData,null,2),'application/json');showToast('JSON backup downloaded');}
+function importJSON(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{allData={...allData,...JSON.parse(ev.target.result)};persist();updateHeaderStats();renderExport();checkAlerts();showToast('Backup restored ✓');}
+    catch{showToast('Invalid file');}
+  };reader.readAsText(file);
+}
+function dlFile(name,content,type){
+  const b=new Blob([content],{type});const url=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DELETE
+// ═══════════════════════════════════════════════════════════
+let deleteId=null;
+function promptDelete(id){deleteId=id;document.getElementById('modal-overlay').classList.add('open');}
+function closeModal(){deleteId=null;document.getElementById('modal-overlay').classList.remove('open');}
+function confirmDelete(){
+  if(!deleteId)return;
+  const key=sessionKey(curGreen(),curDate());
+  allData[key]=(allData[key]||[]).filter(p=>p.id!==deleteId);
+  if(!allData[key].length)delete allData[key];
+  persist();closeModal();updateCaptureStats();updateHeaderStats();checkAlerts();
+  if(currentTab==='map')refreshMap();
+  showToast('Reading deleted');
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS & API KEY
+// ═══════════════════════════════════════════════════════════
+function openSettings(){
+  const key=tipSettings.apiKey||'';
+  document.getElementById('api-key-input').value=key?'••••••••••••'+key.slice(-4):'';
+  updateAIStatusUI();
+  updateSWStatus();
+  document.getElementById('settings-overlay').classList.add('open');
+}
+function closeSettings(){document.getElementById('settings-overlay').classList.remove('open');}
+
+function saveAPIKey(){
+  const raw=document.getElementById('api-key-input').value.trim();
+  if(!raw||raw.startsWith('•')){document.getElementById('api-key-status').textContent='Enter a new key to update.';return;}
+  if(!raw.startsWith('sk-ant')){document.getElementById('api-key-status').textContent='⚠ Key should start with sk-ant…';return;}
+  tipSettings.apiKey=raw;
+  saveSettings(tipSettings);
+  document.getElementById('api-key-status').textContent='✓ Key saved';
+  document.getElementById('api-key-input').value='••••••••••••'+raw.slice(-4);
+  updateAIStatusUI();
+  showToast('API key saved — AI reading enabled');
+}
+function clearAPIKey(){
+  delete tipSettings.apiKey;
+  saveSettings(tipSettings);
+  document.getElementById('api-key-input').value='';
+  document.getElementById('api-key-status').textContent='Key cleared';
+  updateAIStatusUI();
+}
+function updateAIStatusUI(){
+  const hasKey=!!(tipSettings.apiKey);
+  const row=document.getElementById('ai-key-status-row');
+  row.innerHTML=`<span class="ai-status-badge ${hasKey?'ai-on':'ai-off'}">${hasKey?'✓ AI Reading ON':'⚠ AI Reading OFF'}</span>`;
+}
+function hasAPIKey(){return !!(tipSettings&&tipSettings.apiKey);}
+
+// ═══════════════════════════════════════════════════════════
+// AI METER READING — Claude Vision
+// ═══════════════════════════════════════════════════════════
+async function runAIReading(photoB64, forAnalog=false){
+  if(!hasAPIKey())return null;
+  const overlay=document.getElementById('ai-overlay');
+  overlay.classList.add('active');
+  try{
+    const base64Data=photoB64.split(',')[1];
+    const mediaType=photoB64.startsWith('data:image/png')?'image/png':'image/jpeg';
+    const prompt=forAnalog
+      ?'This is a photo of an analog soil moisture meter with a needle/pointer on a curved arc scale. The scale runs from 0% on the left to 100% on the right with color zones (red=Dry, teal=Ideal, blue=Wet). Look at where the needle is pointing and return ONLY the moisture percentage as a plain integer (e.g. 43). No units, no text, just the number. If you cannot determine the reading, return null.'
+      :'This is a photo of a digital soil moisture meter display. Look at the numeric LCD/LED display and return ONLY the moisture percentage as a plain integer (e.g. 43). No units, no text, just the number. If you cannot read a clear number, return null.';
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':tipSettings.apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:64,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:base64Data}},
+          {type:'text',text:prompt}
+        ]}]
+      })
+    });
+    const data=await resp.json();
+    const raw=data?.content?.[0]?.text?.trim();
+    const num=parseInt(raw,10);
+    if(!isNaN(num)&&num>=0&&num<=100)return num;
+    return null;
+  }catch(e){
+    console.warn('AI reading failed:',e);
+    return null;
+  }finally{
+    overlay.classList.remove('active');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ET CALCULATION (FAO-56 simplified, bentgrass Kc=0.85)
+// ═══════════════════════════════════════════════════════════
+function calcET(tempF, humidityPct, windMph){
+  if(tempF==null||humidityPct==null)return null;
+  const Tc=(tempF-32)*5/9;
+  const es=0.6108*Math.exp(17.27*Tc/(Tc+237.3));
+  const ea=es*(humidityPct/100);
+  const vpd=Math.max(0,es-ea);
+  const u2=windMph*0.44704;
+  const delta=4098*es/Math.pow(Tc+237.3,2);
+  const gamma=0.0665;
+  const Rn=Math.max(1,3.5+0.08*Tc); // simplified net radiation estimate MJ/m²/day
+  const ET0=(0.408*delta*Rn+gamma*(900/(Tc+273))*u2*vpd)/(delta+gamma*(1+0.34*u2));
+  const ETc=Math.max(0,ET0*0.85); // bentgrass crop coefficient
+  return parseFloat(ETc.toFixed(2));
+}
+
+// Convert mm/day ET to approximate volumetric moisture % loss
+// Rule of thumb: 1mm ET ≈ 0.8% VWC loss on a typical bentgrass green (4" rootzone)
+function etToPctLoss(etMmDay){ return etMmDay*0.8; }
+
+function getLatestWeather(){
+  // Find most recent weather reading across all sessions
+  let latest=null, latestTs=0;
+  Object.values(allData).forEach(pts=>{
+    pts.forEach(p=>{
+      if(p.weather&&p.ts){
+        const ts=new Date(p.ts).getTime();
+        if(ts>latestTs){latestTs=ts;latest=p.weather;}
+      }
+    });
+  });
+  return latest;
+}
+
+function updateETDisplay(){
+  const wx=getLatestWeather();
+  if(!wx){
+    document.getElementById('et-rate').textContent='—';
+    document.getElementById('et-pct').textContent='—';
+    document.getElementById('et-hours').textContent='—';
+    return;
+  }
+  const et=calcET(wx.temp,wx.humidity,wx.wind);
+  if(et===null)return;
+  const pctLoss=etToPctLoss(et);
+  const hrsTo5=pctLoss>0?(5/pctLoss*24).toFixed(1):'—';
+  document.getElementById('et-rate').textContent=et;
+  document.getElementById('et-pct').textContent=pctLoss.toFixed(1)+'%';
+  document.getElementById('et-hours').textContent=hrsTo5;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MOISTURE PREDICTIONS
+// ═══════════════════════════════════════════════════════════
+function buildPredictions(){
+  const wx=getLatestWeather();
+  const et=wx?calcET(wx.temp,wx.humidity,wx.wind):null;
+  const container=document.getElementById('predictions-list');
+  const now=Date.now();
+  const rows=[];
+
+  GREEN_LIST.forEach(g=>{
+    // Find most recent session for this green
+    const keys=Object.keys(allData)
+      .filter(k=>k.startsWith(`${g.value}||`)&&allData[k].length>0)
+      .sort();
+    if(!keys.length)return;
+    const lastKey=keys[keys.length-1];
+    const pts=allData[lastKey];
+    const valuedPts=pts.filter(p=>p.value!==null);
+    if(!valuedPts.length)return;
+    const s=calcStats(valuedPts);
+    if(!s)return;
+    const lastDate=lastKey.split('||')[1];
+    const daysSince=(now-new Date(lastDate).getTime())/(1000*60*60*24);
+    const pctLostPerDay=et?etToPctLoss(et):null;
+    const predicted=pctLostPerDay!==null
+      ?Math.max(0,s.avg-pctLostPerDay*daysSince).toFixed(1)
+      :null;
+    rows.push({green:g.label,lastAvg:s.avg,predicted,daysSince:daysSince.toFixed(1),lastDate});
+  });
+
+  if(!rows.length){container.innerHTML='<div class="empty-state" style="padding:20px 0;">Complete at least one survey to see predictions.</div>';return;}
+
+  container.innerHTML='';
+  // Sort by predicted value ascending (driest first)
+  rows.sort((a,b)=>(parseFloat(a.predicted||99)-parseFloat(b.predicted||99)));
+  rows.forEach(r=>{
+    const predVal=r.predicted!==null?r.predicted:'—';
+    const predColor=r.predicted!==null?mColor(parseFloat(r.predicted)):'var(--muted)';
+    const trend=r.predicted!==null&&r.lastAvg
+      ?parseFloat(r.predicted)<r.lastAvg?`↓ ${(r.lastAvg-parseFloat(r.predicted)).toFixed(1)}% since ${r.lastDate}`:'≈ stable'
+      :'';
+    const div=document.createElement('div');
+    div.className='prediction-row';
+    div.innerHTML=
+      `<div class="pred-green">${r.green.replace('Putting Green','PG').replace('Green ','G')}</div>`+
+      `<div class="pred-val" style="color:${predColor}">${predVal}%</div>`+
+      `<div class="pred-trend">${trend}<br/><span style="color:var(--muted);font-size:9px;">${r.daysSince}d since survey · was ${r.lastAvg}%</span></div>`;
+    container.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// IRRIGATION EVENT LOG
+// ═══════════════════════════════════════════════════════════
+function initIrrSelectors(){
+  const sel=document.getElementById('irr-green');
+  sel.innerHTML='';
+  GREEN_LIST.forEach(g=>{const o=document.createElement('option');o.value=g.value;o.textContent=g.label;sel.appendChild(o);});
+  document.getElementById('irr-date').value=todayStr();
+}
+
+function saveIrrigation(){
+  const green=document.getElementById('irr-green').value;
+  const date=document.getElementById('irr-date').value;
+  const type=document.getElementById('irr-type').value;
+  const duration=document.getElementById('irr-duration').value;
+  const notes=document.getElementById('irr-notes').value;
+  if(!date){showToast('Select a date');return;}
+  const evt={id:Date.now(),green,date,type,duration:parseInt(duration)||0,notes,ts:new Date().toISOString()};
+  irrData.unshift(evt);
+  persistIrr();
+  document.getElementById('irr-duration').value='';
+  document.getElementById('irr-notes').value='';
+  renderIrrList();
+  showToast(`💧 Logged: ${typeLabel(type)} on ${green==='all'?'All Greens':'Green '+green}`);
+}
+
+function typeLabel(t){return{hand:'Hand-watering',zone:'Zone run',syringe:'Syringe',full:'Full cycle'}[t]||t;}
+function typeIcon(t){return{hand:'🚿',zone:'⏱',syringe:'💉',full:'🔄'}[t]||'💧';}
+
+function renderIrrList(){
+  const el=document.getElementById('irr-list');
+  if(!irrData.length){el.innerHTML='<div class="empty-state" style="padding:16px 0;">No irrigation events logged yet.</div>';return;}
+  el.innerHTML='';
+  irrData.slice(0,30).forEach(evt=>{
+    const gName=GREEN_LIST.find(g=>g.value===evt.green)?.label||`Green ${evt.green}`;
+    const card=document.createElement('div');
+    card.className='irr-card';
+    card.innerHTML=
+      `<div class="irr-icon">${typeIcon(evt.type)}</div>`+
+      `<div class="irr-info">`+
+        `<div class="irr-head">${typeLabel(evt.type)} — ${gName}</div>`+
+        `<div class="irr-meta">${evt.date}${evt.duration?` · ${evt.duration} min`:''}${evt.notes?` · ${evt.notes}`:''}</div>`+
+      `</div>`+
+      `<button class="irr-del" onclick="deleteIrr(${evt.id})">✕</button>`;
+    el.appendChild(card);
+  });
+}
+
+function deleteIrr(id){
+  irrData=irrData.filter(e=>e.id!==id);
+  persistIrr();
+  renderIrrList();
+}
+
+// ═══════════════════════════════════════════════════════════
+// COVERAGE GAP ANALYSIS (enhanced for Phase 1)
+// ═══════════════════════════════════════════════════════════
+let gapLayer=null;
+let showGaps=false;
+
+function toggleGapAnalysis(){
+  showGaps=!showGaps;
+  document.getElementById('btn-gaps').classList.toggle('active-ctrl',showGaps);
+  if(showGaps)runGapAnalysis();
+  else if(gapLayer){map.removeLayer(gapLayer);gapLayer=null;}
+}
+
+function runGapAnalysis(){
+  const SPR_KEY='golf_sprinklers_v1';
+  let sprinklers=[];
+  try{sprinklers=JSON.parse(localStorage.getItem(SPR_KEY))||[];}catch{}
+  const greenHeads=sprinklers.filter(s=>String(s.green)===String(curGreen()));
+  const pts=curPoints();
+  if(gapLayer){map.removeLayer(gapLayer);gapLayer=null;}
+  if(!greenHeads.length||!pts.length){showToast('No sprinkler heads logged for this green');showGaps=false;document.getElementById('btn-gaps').classList.remove('active-ctrl');return;}
+
+  // Sample grid within bounding box of moisture points
+  const lats=pts.map(p=>p.lat), lngs=pts.map(p=>p.lng);
+  const minLat=Math.min(...lats), maxLat=Math.max(...lats);
+  const minLng=Math.min(...lngs), maxLng=Math.max(...lngs);
+  const STEPS=30;
+  const latStep=(maxLat-minLat)/STEPS;
+  const lngStep=(maxLng-minLng)/STEPS;
+
+  // Feet per degree approximations
+  const ftPerLat=364000; // ~364,000 ft per degree lat
+  const ftPerLng=364000*Math.cos(((minLat+maxLat)/2)*Math.PI/180);
+
+  const gapPoints=[];
+  for(let i=0;i<=STEPS;i++){
+    for(let j=0;j<=STEPS;j++){
+      const lat=minLat+i*latStep;
+      const lng=minLng+j*lngStep;
+      const covered=greenHeads.some(h=>{
+        const dLat=(lat-h.lat)*ftPerLat;
+        const dLng=(lng-h.lng)*ftPerLng;
+        const distFt=Math.sqrt(dLat*dLat+dLng*dLng);
+        return distFt<=h.throw;
+      });
+      if(!covered) gapPoints.push([lat,lng,1]);
+    }
+  }
+
+  if(gapPoints.length){
+    gapLayer=L.heatLayer(gapPoints,{
+      radius:22,blur:18,maxZoom:21,max:1,
+      gradient:{'0.0':'rgba(220,30,30,0)','0.5':'rgba(220,30,30,0.4)','1.0':'rgba(220,30,30,0.7)'}
+    }).addTo(map);
+    showToast(`Gap analysis: ${gapPoints.length} uncovered sample points`);
+  } else {
+    showToast('✓ Full coverage — no gaps detected');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PWA — SERVICE WORKER REGISTRATION
+// ═══════════════════════════════════════════════════════════
+function registerServiceWorker(){
+  if(!('serviceWorker' in navigator))return;
+  // SW must be a real file on GitHub Pages — check if sw.js exists
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+    console.log('SW registered',reg.scope);
+    updateSWStatus('✓ Offline mode active');
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      showToast('App updated — reload for latest version');
+    });
+  }).catch(err=>{
+    console.log('SW not found (upload sw.js to GitHub repo):',err.message);
+    updateSWStatus('⚠ Upload sw.js to GitHub for offline mode');
+  });
+
+  // Online/offline detection
+  window.addEventListener('offline',()=>{
+    document.getElementById('offline-badge').style.display='inline-block';
+    showToast('📵 Offline — data saves locally');
+  });
+  window.addEventListener('online',()=>{
+    document.getElementById('offline-badge').style.display='none';
+    showToast('📶 Back online');
+  });
+  if(!navigator.onLine) document.getElementById('offline-badge').style.display='inline-block';
+}
+
+function updateSWStatus(msg){
+  const el=document.getElementById('sw-status');
+  if(el&&msg)el.textContent=msg;
+  else if(el) el.textContent='serviceWorker' in navigator?'Checking…':'Not supported on this browser.';
+}
+
+// ═══════════════════════════════════════════════════════════
+// 1. SCREEN WAKE LOCK
+// ═══════════════════════════════════════════════════════════
+let wakeLock=null;
+
+async function requestWakeLock(){
+  if(!('wakeLock' in navigator))return;
+  try{
+    wakeLock=await navigator.wakeLock.request('screen');
+    document.getElementById('wakelock-indicator').classList.add('active');
+    wakeLock.addEventListener('release',()=>{
+      document.getElementById('wakelock-indicator').classList.remove('active');
+      wakeLock=null;
+    });
+  }catch(e){console.warn('Wake lock denied:',e.message);}
+}
+
+function releaseWakeLock(){
+  if(wakeLock){wakeLock.release();wakeLock=null;}
+  document.getElementById('wakelock-indicator').classList.remove('active');
+}
+
+// Re-acquire wake lock when page becomes visible again (iOS releases it on tab switch)
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'&&currentTab==='capture') await requestWakeLock();
+});
+
+// ═══════════════════════════════════════════════════════════
+// 2. SUNLIGHT MODE
+// ═══════════════════════════════════════════════════════════
+function toggleSunlight(){
+  const on=document.body.classList.toggle('sunlight');
+  document.getElementById('sunlight-btn').textContent=on?'🌙':'☀️';
+  tipSettings.sunlight=on;
+  saveSettings(tipSettings);
+  // Re-render trend charts to pick up new colors
+  if(currentTab==='trend')renderTrend();
+}
+
+function applySavedSunlight(){
+  if(tipSettings.sunlight){
+    document.body.classList.add('sunlight');
+    document.getElementById('sunlight-btn').textContent='🌙';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 3. ALL-GREENS DASHBOARD
+// ═══════════════════════════════════════════════════════════
+function renderDashboard(){
+  const today=todayStr();
+  const grid=document.getElementById('dashboard-grid');
+  grid.innerHTML='';
+
+  let surveyedToday=0, totalAlerts=0, allAvgs=[], totalGreens=GREEN_LIST.length;
+
+  GREEN_LIST.forEach(g=>{
+    // Find most recent session
+    const keys=Object.keys(allData)
+      .filter(k=>k.startsWith(`${g.value}||`)&&allData[k].length>0).sort();
+    const todayKey=`${g.value}||${today}`;
+    const hasToday=!!(allData[todayKey]&&allData[todayKey].length);
+    if(hasToday)surveyedToday++;
+
+    const lastKey=keys.length?keys[keys.length-1]:null;
+    const pts=lastKey?allData[lastKey].filter(p=>p.value!==null):[];
+    const s=pts.length?calcStats(pts):null;
+    const lastDate=lastKey?lastKey.split('||')[1]:null;
+    const daysAgo=lastDate?Math.round((Date.now()-new Date(lastDate).getTime())/(86400000)):null;
+
+    // Alert: avg below 25 or dropped >10%
+    let isAlert=false;
+    if(s&&s.avg<25)isAlert=true;
+    if(keys.length>=2){
+      const prev=allData[keys[keys.length-2]].filter(p=>p.value!==null);
+      const sp=prev.length?calcStats(prev):null;
+      if(s&&sp&&(sp.avg-s.avg)>=10)isAlert=true;
+    }
+    if(isAlert)totalAlerts++;
+    if(s)allAvgs.push(s.avg);
+
+    const tileColor=s?mColor(s.avg):'#444';
+    const shortName=g.label.replace('Putting Green','PG').replace('Green ','G');
+
+    const tile=document.createElement('div');
+    tile.className='green-tile'+(hasToday?' surveyed-today':'')+(isAlert?' alert-tile':s&&s.avg<25?' needs-water':'');
+    tile.innerHTML=
+      `<div class="gt-badge" style="background:${hasToday?'var(--green)':'transparent'};border:1px solid ${hasToday?'var(--green2)':'var(--border)'};"></div>`+
+      `<div class="gt-name">${shortName}</div>`+
+      `<div class="gt-val" style="color:${tileColor}">${s?s.avg+'%':'—'}</div>`+
+      `<div class="gt-lbl">${s?mLabel(s.avg):'No data'}</div>`+
+      `<div class="gt-date">${daysAgo===null?'Never':daysAgo===0?'Today':daysAgo===1?'Yesterday':daysAgo+'d ago'}</div>`;
+    tile.addEventListener('click',()=>{
+      greenSel.value=g.value;
+      if(lastDate)dateSel.value=lastDate;
+      onSessionChange();
+      switchTab('map');
+    });
+    grid.appendChild(tile);
+  });
+
+  // Summary
+  document.getElementById('ds-surveyed').textContent=surveyedToday;
+  document.getElementById('ds-alerts').textContent=totalAlerts;
+  document.getElementById('ds-alerts').style.color=totalAlerts>0?'var(--dry)':'var(--green)';
+  const courseAvg=allAvgs.length?(allAvgs.reduce((a,b)=>a+b,0)/allAvgs.length).toFixed(1):'—';
+  document.getElementById('ds-avg').textContent=courseAvg==='—'?'—':courseAvg+'%';
+  if(courseAvg!=='—') document.getElementById('ds-avg').style.color=mColor(parseFloat(courseAvg));
+  document.getElementById('ds-total').textContent=totalGreens;
+  const pct=Math.round((surveyedToday/totalGreens)*100);
+  document.getElementById('ds-progress-fill').style.width=pct+'%';
+  document.getElementById('ds-progress-label').textContent=`${surveyedToday} / ${totalGreens}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 4. GREEN BOUNDARY POLYGONS
+// ═══════════════════════════════════════════════════════════
+let drawingBoundary=false;
+let boundaryDraftPoints=[];
+let boundaryDraftLayer=null;
+let boundaryLayers={};
+
+function loadBoundaries(){try{return JSON.parse(localStorage.getItem(BOUNDARY_KEY))||{};}catch{return{};}}
+function saveBoundaries(b){localStorage.setItem(BOUNDARY_KEY,JSON.stringify(b));}
+let savedBoundaries=loadBoundaries();
+
+function startBoundaryDraw(){
+  drawingBoundary=true;
+  boundaryDraftPoints=[];
+  document.getElementById('boundary-controls').classList.add('active');
+  document.getElementById('btn-draw-boundary').classList.add('active-ctrl');
+  document.getElementById('bnd-pt-count').textContent='Tap map to add points (0)';
+  map.getContainer().style.cursor='crosshair';
+  showToast('Tap the green perimeter to add boundary points');
+}
+
+function cancelBoundaryDraw(){
+  drawingBoundary=false;
+  boundaryDraftPoints=[];
+  if(boundaryDraftLayer){map.removeLayer(boundaryDraftLayer);boundaryDraftLayer=null;}
+  document.getElementById('boundary-controls').classList.remove('active');
+  document.getElementById('btn-draw-boundary').classList.remove('active-ctrl');
+  map.getContainer().style.cursor='';
+}
+
+function clearBoundaryDraft(){
+  boundaryDraftPoints=[];
+  if(boundaryDraftLayer){map.removeLayer(boundaryDraftLayer);boundaryDraftLayer=null;}
+  document.getElementById('bnd-pt-count').textContent='Tap map to add points (0)';
+}
+
+function onMapClick(e){
+  if(!drawingBoundary)return;
+  boundaryDraftPoints.push([e.latlng.lat,e.latlng.lng]);
+  if(boundaryDraftLayer)map.removeLayer(boundaryDraftLayer);
+  if(boundaryDraftPoints.length>=3){
+    boundaryDraftLayer=L.polygon(boundaryDraftPoints,{color:'#5db85d',weight:2,fillColor:'#5db85d',fillOpacity:0.15,dashArray:'5,5'}).addTo(map);
+  } else {
+    boundaryDraftLayer=L.polyline(boundaryDraftPoints,{color:'#5db85d',weight:2,dashArray:'5,5'}).addTo(map);
+  }
+  document.getElementById('bnd-pt-count').textContent=`Tap map to add points (${boundaryDraftPoints.length})`;
+}
+
+function saveBoundary(){
+  if(boundaryDraftPoints.length<3){showToast('Add at least 3 points');return;}
+  savedBoundaries[String(curGreen())]=boundaryDraftPoints;
+  saveBoundaries(savedBoundaries);
+  cancelBoundaryDraw();
+  renderBoundaryLayer(curGreen());
+  showToast(`✓ Boundary saved for Green ${curGreen()}`);
+}
+
+function deleteSavedBoundary(){
+  delete savedBoundaries[String(curGreen())];
+  saveBoundaries(savedBoundaries);
+  if(boundaryLayers[curGreen()]){map.removeLayer(boundaryLayers[curGreen()]);delete boundaryLayers[curGreen()];}
+  cancelBoundaryDraw();
+  showToast('Boundary deleted');
+}
+
+function renderBoundaryLayer(green){
+  if(boundaryLayers[green]){map.removeLayer(boundaryLayers[green]);delete boundaryLayers[green];}
+  const pts=savedBoundaries[String(green)];
+  if(!pts||pts.length<3)return;
+  boundaryLayers[green]=L.polygon(pts,{color:'#5db85d',weight:2,fillColor:'#5db85d',fillOpacity:0.08}).addTo(map);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 5. UNDO LAST CAPTURE
+// ═══════════════════════════════════════════════════════════
+let undoTimer=null;
+let lastCapturedId=null;
+
+function showUndoButton(id){
+  lastCapturedId=id;
+  const btn=document.getElementById('undo-btn');
+  btn.classList.add('visible');
+  btn.textContent='↩ Undo Last Point';
+  clearTimeout(undoTimer);
+  // Auto-hide after 12 seconds
+  let secs=12;
+  const tick=()=>{
+    secs--;
+    if(secs<=0){btn.classList.remove('visible');lastCapturedId=null;return;}
+    btn.textContent=`↩ Undo Last Point (${secs}s)`;
+    undoTimer=setTimeout(tick,1000);
+  };
+  undoTimer=setTimeout(tick,1000);
+}
+
+function undoLastCapture(){
+  if(!lastCapturedId)return;
+  const key=sessionKey(curGreen(),curDate());
+  const before=allData[key]||[];
+  allData[key]=before.filter(p=>p.id!==lastCapturedId);
+  if(!allData[key].length)delete allData[key];
+  persist();
+  lastCapturedId=null;
+  clearTimeout(undoTimer);
+  document.getElementById('undo-btn').classList.remove('visible');
+  updateLiveStrip();
+  updateCaptureStats();
+  updateHeaderStats();
+  const pts=curPoints();
+  document.getElementById('vf-pt-count').textContent=pts.length+' pts';
+  document.getElementById('capture-feedback').textContent='↩ Point removed';
+  showToast('Last point undone');
+}
+
+// ═══════════════════════════════════════════════════════════
+// WIFI WARNING
+// ═══════════════════════════════════════════════════════════
+function showWifiWarning(){
+  document.getElementById('wifi-modal').classList.add('open');
+}
+function dismissWifi(){
+  document.getElementById('wifi-modal').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// WEATHER MANUAL REFRESH
+// ═══════════════════════════════════════════════════════════
+async function refreshWeather(){
+  const btn=document.getElementById('wx-refresh-btn');
+  if(!lastGPSCoords&&!lastWeather){showToast('Capture a point first to get GPS location');return;}
+  btn.classList.add('spinning');
+  const coords=lastGPSCoords||{lat:null,lng:null};
+  // Use stored coords from last point if no live GPS
+  if(!coords.lat){
+    const pts=Object.values(allData).flat();
+    if(pts.length){const last=pts[pts.length-1];coords.lat=last.lat;coords.lng=last.lng;}
+  }
+  if(coords.lat){
+    await fetchWeather(coords.lat,coords.lng);
+    updateETDisplay();
+    showToast('🌤 Weather updated');
+  } else {
+    showToast('No GPS location available yet');
+  }
+  btn.classList.remove('spinning');
+}
+
+// ═══════════════════════════════════════════════════════════
+// SPLIT VIEW TOGGLE
+// ═══════════════════════════════════════════════════════════
+function toggleSplitView(){
+  const isFullCam=document.body.classList.toggle('full-camera');
+  tipSettings.fullCamera=isFullCam;
+  saveSettings(tipSettings);
+  if(!isFullCam) renderCoverageMap(); // refresh map when reopening split
+}
+
+function applySavedSplitMode(){
+  if(tipSettings.fullCamera) document.body.classList.add('full-camera');
+}
+
+// ═══════════════════════════════════════════════════════════
+// LIVE COVERAGE DOT-PLOT
+// ═══════════════════════════════════════════════════════════
+function renderCoverageMap(){
+  const canvas=document.getElementById('coverage-canvas');
+  const emptyEl=document.getElementById('coverage-empty');
+  const pctLabel=document.getElementById('coverage-pct-label');
+  const nameEl=document.getElementById('cov-green-name');
+
+  // Update green name
+  const gName=GREEN_LIST.find(g=>String(g.value)===String(curGreen()))?.label||`Green ${curGreen()}`;
+  nameEl.textContent=gName.replace('Putting Green','PG').replace('Green ','G');
+
+  const pts=curPoints();
+  if(!pts.length){
+    canvas.style.display='none';
+    emptyEl.style.display='flex';
+    pctLabel.textContent='';
+    return;
+  }
+  canvas.style.display='block';
+  emptyEl.style.display='none';
+
+  // Size canvas to its container
+  const W=canvas.offsetWidth||300;
+  const H=canvas.offsetHeight||100;
+  canvas.width=W;
+  canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#080f08';
+  ctx.fillRect(0,0,W,H);
+
+  const lats=pts.map(p=>p.lat);
+  const lngs=pts.map(p=>p.lng);
+  const minLat=Math.min(...lats),maxLat=Math.max(...lats);
+  const minLng=Math.min(...lngs),maxLng=Math.max(...lngs);
+
+  const PAD=14;
+  function toXY(lat,lng){
+    const latR=maxLat-minLat||0.0001;
+    const lngR=maxLng-minLng||0.0001;
+    const x=PAD+((lng-minLng)/lngR)*(W-PAD*2);
+    const y=H-PAD-((lat-minLat)/latR)*(H-PAD*2);
+    return[x,y];
+  }
+
+  // Calculate approximate coverage % based on sqft input
+  const sqft=parseFloat(document.getElementById('sqft-input')?.value)||6000;
+  const spacing=7.5; // ft
+  const expectedPts=Math.round(sqft/(spacing*spacing));
+  const covPct=Math.min(100,Math.round((pts.length/expectedPts)*100));
+  pctLabel.textContent=covPct+'% covered';
+
+  // Draw soft coverage halos
+  const haloR=Math.max(10,Math.min(W,H)/5);
+  pts.forEach(p=>{
+    const[x,y]=toXY(p.lat,p.lng);
+    const c=p.value!==null?mColor(p.value):'#888888';
+    const grad=ctx.createRadialGradient(x,y,0,x,y,haloR);
+    grad.addColorStop(0,c+'55');
+    grad.addColorStop(1,c+'00');
+    ctx.beginPath();ctx.arc(x,y,haloR,0,Math.PI*2);
+    ctx.fillStyle=grad;ctx.fill();
+  });
+
+  // Draw dots — with LDS flag markers
+  const ldsIds=new Set((currentLDSFlags||[]).map(f=>f.id));
+  pts.forEach((p,i)=>{
+    const[x,y]=toXY(p.lat,p.lng);
+    const c=p.value!==null?mColor(p.value):'#e8b83a';
+
+    if(ldsIds.has(p.id)){
+      // LDS flagged point — draw diamond + outer ring
+      ctx.save();
+      ctx.translate(x,y);ctx.rotate(Math.PI/4);
+      ctx.beginPath();ctx.rect(-5,-5,10,10);
+      ctx.fillStyle='#e05c3a';ctx.strokeStyle='#fff';ctx.lineWidth=1.5;
+      ctx.fill();ctx.stroke();
+      ctx.restore();
+      // Outer warning ring
+      ctx.beginPath();ctx.arc(x,y,9,0,Math.PI*2);
+      ctx.strokeStyle='rgba(224,92,58,.5)';ctx.lineWidth=2;ctx.stroke();
+      // Label
+      ctx.fillStyle='#fff';ctx.font='bold 8px monospace';ctx.textAlign='center';
+      ctx.fillText('LDS',x,y+16);
+    } else {
+      ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fillStyle=c;ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1;
+      ctx.fill();ctx.stroke();
+    }
+  });
+
+  // Highlight latest point with ring
+  const last=pts[pts.length-1];
+  const[lx,ly]=toXY(last.lat,last.lng);
+  ctx.beginPath();ctx.arc(lx,ly,7,0,Math.PI*2);
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════
+// NEXT GREEN BUTTON
+// ═══════════════════════════════════════════════════════════
+function updateNextGreenBtn(){
+  const btn=document.getElementById('next-green-btn');
+  const label=document.getElementById('next-green-label');
+  const sub=document.getElementById('next-green-sublabel');
+  const curIdx=GREEN_LIST.findIndex(g=>String(g.value)===String(curGreen()));
+  if(curIdx<GREEN_LIST.length-1){
+    const next=GREEN_LIST[curIdx+1];
+    const shortName=next.label.replace('Putting Green','PG').replace('Green ','G');
+    label.textContent=`→ ${shortName}`;
+    sub.textContent='next green';
+    btn.classList.remove('complete');
+    btn.disabled=false;
+  } else {
+    label.textContent='✓ All Done';
+    sub.textContent='survey complete';
+    btn.classList.add('complete');
+    btn.disabled=false; // still tappable to show toast
+  }
+}
+
+function goNextGreen(){
+  const curIdx=GREEN_LIST.findIndex(g=>String(g.value)===String(curGreen()));
+  if(curIdx<GREEN_LIST.length-1){
+    const next=GREEN_LIST[curIdx+1];
+    greenSel.value=next.value;
+    onSessionChange();
+    updateNextGreenBtn();
+    renderCoverageMap();
+    // Clear feedback and undo
+    document.getElementById('capture-feedback').textContent='';
+    document.getElementById('undo-btn').classList.remove('visible');
+    clearTimeout(undoTimer);
+    showToast(`→ ${next.label}`);
+  } else {
+    showToast('🏆 All greens surveyed! Great work.');
+    // Optionally jump to dashboard
+    switchTab('dashboard');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRASS TYPES & THRESHOLDS
+// ═══════════════════════════════════════════════════════════
+const GRASS_TYPES = {
+  tifeagle:  { name:'TifEagle Bermuda',   short:'TifEagle',   desc:'Ultradwarf · Most common championship bermuda · Southeast staple', t:{vd:18,d:25,sd:33,sw:52,w:62,vw:72} },
+  miniverde: { name:'MiniVerde Bermuda',  short:'MiniVerde',  desc:'Ultradwarf · Exceptional density and uniformity', t:{vd:16,d:22,sd:30,sw:50,w:60,vw:70} },
+  champion:  { name:'Champion Bermuda',   short:'Champion',   desc:'Ultradwarf · Widely used in Southeast and Sun Belt', t:{vd:17,d:24,sd:32,sw:51,w:61,vw:71} },
+  mach1:     { name:'Mach 1 Bermuda',     short:'Mach 1',     desc:'Proprietary ultradwarf · Exceptional drought tolerance · Streamsong', t:{vd:14,d:20,sd:28,sw:46,w:56,vw:66} },
+  tif3d:     { name:'Tif3d Bermuda',      short:'Tif3d',      desc:'Latest generation ultradwarf · Improved cold tolerance', t:{vd:18,d:26,sd:34,sw:53,w:63,vw:73} },
+  bentgrass: { name:'Crenshaw Bentgrass', short:'Bentgrass',  desc:'Creeping bentgrass · Higher moisture needs · Cooler climates', t:{vd:26,d:33,sd:42,sw:58,w:68,vw:78} },
+  poa:       { name:'Poa Annua',          short:'Poa Annua',  desc:'Annual bluegrass · Highest moisture requirement · Least drought tolerant', t:{vd:30,d:38,sd:46,sw:62,w:72,vw:82} },
+  custom:    { name:'Custom / Other',     short:'Custom',     desc:'Set your own thresholds for unlisted varieties', t:{vd:20,d:28,sd:38,sw:54,w:64,vw:74} },
+};
+
+// Threshold keys: vd=VeryDry, d=Dry, sd=SlightlyDry, sw=SlightlyWet, w=Wet, vw=VeryWet
+// Zones: <vd | vd-d | d-sd | sd-sw(optimal) | sw-w | w-vw | >vw
+
+function getGrassKey(green){
+  const g=String(green||curGreen());
+  return tipSettings.greenGrass?.[g] || tipSettings.courseGrass || 'tifeagle';
+}
+
+function getThresholds(green){
+  const key=getGrassKey(green);
+  const custom=tipSettings.customThresholds?.[key];
+  return custom || GRASS_TYPES[key]?.t || GRASS_TYPES.tifeagle.t;
+}
+
+function mColor(v, green){
+  if(v===null||v===undefined)return'#888';
+  const t=getThresholds(green);
+  if(v<t.vd)return'#e05c3a';
+  if(v<t.d) return'#e8923a';
+  if(v<t.sd)return'#d4c94a';
+  if(v<t.sw)return'#5cb85c';
+  if(v<t.w) return'#4ab3b8';
+  if(v<t.vw)return'#3a82c8';
+  return'#2a4fa8';
+}
+function mLabel(v, green){
+  if(v===null||v===undefined)return'—';
+  const t=getThresholds(green);
+  if(v<t.vd)return'Very Dry';
+  if(v<t.d) return'Dry';
+  if(v<t.sd)return'Sl. Dry';
+  if(v<t.sw)return'Optimal';
+  if(v<t.w) return'Sl. Wet';
+  if(v<t.vw)return'Wet';
+  return'Very Wet';
+}
+
+function optimalRange(green){
+  const t=getThresholds(green);
+  return `${t.sd}–${t.sw}%`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETUP WIZARD
+// ═══════════════════════════════════════════════════════════
+let setupGrassKey='tifeagle';
+
+function initSetupWizard(){
+  // Populate grass type grid
+  const grid=document.getElementById('grass-type-grid');
+  grid.innerHTML='';
+  Object.entries(GRASS_TYPES).forEach(([key,g])=>{
+    const card=document.createElement('div');
+    card.className='grass-card'+(key==='tifeagle'?' selected':'');
+    card.dataset.key=key;
+    card.innerHTML=`<div class="gc-name">${g.short}</div><div class="gc-range">Optimal: ${g.t.sd}–${g.t.sw}%</div><div class="gc-desc">${g.desc}</div>`;
+    card.addEventListener('click',()=>{
+      document.querySelectorAll('.grass-card').forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      setupGrassKey=key;
+    });
+    grid.appendChild(card);
+  });
+}
+
+function buildThresholdTable(containerId, grassKey, editable){
+  const t=getThresholds();
+  const g=GRASS_TYPES[grassKey]||GRASS_TYPES.tifeagle;
+  const rows=[
+    {label:'Very Dry', color:'#e05c3a', val:'vd'},
+    {label:'Dry',      color:'#e8923a', val:'d'},
+    {label:'Sl. Dry',  color:'#d4c94a', val:'sd'},
+    {label:'Optimal',  color:'#5cb85c', val:'sw', isOpt:true},
+    {label:'Sl. Wet',  color:'#4ab3b8', val:'w'},
+    {label:'Wet',      color:'#3a82c8', val:'vw'},
+    {label:'Very Wet', color:'#2a4fa8', val:null},
+  ];
+  const thresh=tipSettings.customThresholds?.[grassKey]||g.t;
+  let html='<table class="threshold-table"><tr><th style="width:9px;"></th><th style="font-size:9px;color:var(--muted);text-align:left;padding:4px 5px;">Zone</th><th style="font-size:9px;color:var(--muted);padding:4px 5px;">Threshold</th></tr>';
+  const keys=['vd','d','sd','sw','w','vw'];
+  rows.forEach((row,i)=>{
+    const isOpt=row.label==='Optimal';
+    const trClass=isOpt?'threshold-row-opt':'';
+    const bound=row.val?thresh[row.val]:'—';
+    const inputOrVal=editable&&row.val
+      ?`<input class="threshold-input" data-key="${row.val}" type="number" min="0" max="100" value="${bound}"/>`
+      :`<span style="font-size:11px;color:var(--text2);">${isOpt?`${thresh.sd}–${thresh.sw}%`:(row.val?`< ${bound}%`:'≥ '+thresh.vw+'%')}</span>`;
+    html+=`<tr class="${trClass}"><td><span class="t-swatch" style="background:${row.color};"></span></td><td class="t-label">${row.label}</td><td>${inputOrVal}</td></tr>`;
+  });
+  html+='</table>';
+  const el=document.getElementById(containerId);
+  if(el) el.innerHTML=html;
+}
+
+function setupNext(step){
+  if(step===1){
+    const cname=document.getElementById('setup-course-name').value.trim();
+    const sname=document.getElementById('setup-super-name').value.trim();
+    const sqft=document.getElementById('setup-sqft').value;
+    if(!cname){showToast('Please enter a course name');return;}
+    tipSettings.courseName=cname;
+    tipSettings.superintendentName=sname;
+    if(sqft)tipSettings.defaultSqft=parseInt(sqft);
+  }
+  if(step===2){
+    tipSettings.courseGrass=setupGrassKey;
+    saveSettings(tipSettings);
+    // Update threshold table
+    document.getElementById('setup-grass-name-display').textContent=GRASS_TYPES[setupGrassKey].name;
+    buildThresholdTable('setup-threshold-table-wrap', setupGrassKey, true);
+  }
+  if(step===3){
+    // Save any threshold edits from the table
+    const inputs=document.querySelectorAll('#setup-threshold-table-wrap .threshold-input');
+    if(inputs.length){
+      const custom={};
+      inputs.forEach(inp=>{ custom[inp.dataset.key]=parseInt(inp.value)||GRASS_TYPES[setupGrassKey].t[inp.dataset.key]; });
+      if(!tipSettings.customThresholds)tipSettings.customThresholds={};
+      tipSettings.customThresholds[setupGrassKey]=custom;
+    }
+    saveSettings(tipSettings);
+  }
+  // Advance step
+  document.getElementById(`setup-step-${step}`).classList.remove('active');
+  document.getElementById(`setup-step-${step+1}`).classList.add('active');
+}
+
+function setupComplete(){
+  const surveyor=document.getElementById('setup-surveyor').value.trim();
+  if(surveyor) tipSettings.surveyorName=surveyor;
+  tipSettings.setupComplete=true;
+  saveSettings(tipSettings);
+  document.getElementById('setup-wizard').classList.remove('open');
+  updateStaffBar();
+  updateSettingsCourseInfo();
+  // Auto-fill sqft in grid estimator if provided
+  if(tipSettings.defaultSqft) document.getElementById('sqft-input').value=tipSettings.defaultSqft;
+}
+
+function reopenSetup(){
+  closeSettings();
+  initSetupWizard();
+  document.getElementById('setup-step-1').classList.add('active');
+  ['2','3','4'].forEach(n=>document.getElementById(`setup-step-${n}`).classList.remove('active'));
+  document.getElementById('setup-wizard').classList.add('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// STAFF NAME
+// ═══════════════════════════════════════════════════════════
+function updateStaffBar(){
+  const name=tipSettings.surveyorName||'';
+  const bar=document.getElementById('staff-bar-name');
+  bar.textContent=name?`👤 ${name}`:'👤 Tap to set surveyor name';
+}
+
+function openStaffModal(){
+  document.getElementById('staff-name-input').value=tipSettings.surveyorName||'';
+  document.getElementById('staff-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('staff-name-input').focus(),150);
+}
+function closeStaffModal(){document.getElementById('staff-modal').classList.remove('open');}
+function saveStaffName(){
+  tipSettings.surveyorName=document.getElementById('staff-name-input').value.trim();
+  saveSettings(tipSettings);
+  updateStaffBar();
+  closeStaffModal();
+  showToast(`Surveyor: ${tipSettings.surveyorName||'—'}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SURVEY MODES
+// ═══════════════════════════════════════════════════════════
+let surveyMode='quick'; // 'quick' | 'full'
+
+function setSurveyMode(mode){
+  surveyMode=mode;
+  tipSettings.surveyMode=mode;
+  saveSettings(tipSettings);
+  document.getElementById('mode-quick').classList.toggle('active',mode==='quick');
+  document.getElementById('mode-full').classList.toggle('active',mode==='full');
+  updateSurveyProgress();
+}
+
+function getSurveyTarget(){
+  if(surveyMode==='quick') return 20;
+  const sqft=parseFloat(document.getElementById('sqft-input')?.value)||tipSettings.defaultSqft||6000;
+  return Math.round(sqft/(7.5*7.5)); // 3-pace grid
+}
+
+function updateSurveyProgress(){
+  const pts=curPoints();
+  const count=pts.length;
+  const target=getSurveyTarget();
+  const pct=Math.min(100,Math.round((count/target)*100));
+  document.getElementById('survey-progress-bar-fill').style.width=pct+'%';
+  document.getElementById('survey-progress-label').textContent=`${count} / ${target} pts`;
+  const badge=document.getElementById('survey-complete-badge');
+  if(count>=target){
+    badge.style.display='inline';
+    document.getElementById('survey-progress-label').style.display='none';
+    document.getElementById('survey-progress-bar-fill').style.background='var(--green)';
+  } else {
+    badge.style.display='none';
+    document.getElementById('survey-progress-label').style.display='';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS — GRASS & THRESHOLDS
+// ═══════════════════════════════════════════════════════════
+function updateSettingsCourseInfo(){
+  const el=document.getElementById('settings-course-info');
+  if(!el)return;
+  const name=tipSettings.courseName||'Not set';
+  const sup=tipSettings.superintendentName||'';
+  const grass=GRASS_TYPES[tipSettings.courseGrass||'tifeagle']?.name||'TifEagle';
+  el.innerHTML=`<b>${name}</b>${sup?`<br/>${sup}`:''}${tipSettings.defaultSqft?`<br/>Avg green: ${tipSettings.defaultSqft.toLocaleString()} sq ft`:''}`;
+}
+
+function populateGrassSelects(){
+  // Course default selector in settings
+  const sel=document.getElementById('settings-grass-sel');
+  if(!sel)return;
+  sel.innerHTML='';
+  Object.entries(GRASS_TYPES).forEach(([key,g])=>{
+    const o=document.createElement('option');
+    o.value=key;o.textContent=g.name;
+    if(key===(tipSettings.courseGrass||'tifeagle'))o.selected=true;
+    sel.appendChild(o);
+  });
+  updateSettingsGrassDesc();
+  buildThresholdEditor();
+  buildPerGreenList();
+}
+
+function onCourseGrassChange(){
+  const key=document.getElementById('settings-grass-sel').value;
+  tipSettings.courseGrass=key;
+  saveSettings(tipSettings);
+  updateSettingsGrassDesc();
+  buildThresholdEditor();
+}
+
+function updateSettingsGrassDesc(){
+  const key=document.getElementById('settings-grass-sel')?.value||tipSettings.courseGrass||'tifeagle';
+  const g=GRASS_TYPES[key];
+  const el=document.getElementById('settings-grass-desc');
+  if(el&&g) el.textContent=`${g.desc} · Optimal: ${g.t.sd}–${g.t.sw}%`;
+}
+
+function buildThresholdEditor(){
+  const key=document.getElementById('settings-grass-sel')?.value||tipSettings.courseGrass||'tifeagle';
+  buildThresholdTable('threshold-editor-wrap', key, true);
+}
+
+function saveCustomThresholds(){
+  const key=document.getElementById('settings-grass-sel')?.value||tipSettings.courseGrass||'tifeagle';
+  const inputs=document.querySelectorAll('#threshold-editor-wrap .threshold-input');
+  if(!inputs.length)return;
+  const custom={};
+  let valid=true;
+  inputs.forEach(inp=>{
+    const v=parseInt(inp.value);
+    if(isNaN(v)||v<0||v>100){valid=false;inp.style.borderColor='#c04040';}
+    else{custom[inp.dataset.key]=v;inp.style.borderColor='';}
+  });
+  if(!valid){showToast('Check threshold values (0–100)');return;}
+  // Validate order
+  const order=['vd','d','sd','sw','w','vw'];
+  for(let i=0;i<order.length-1;i++){
+    if(custom[order[i]]>=custom[order[i+1]]){showToast('Thresholds must increase from dry to wet');return;}
+  }
+  if(!tipSettings.customThresholds)tipSettings.customThresholds={};
+  tipSettings.customThresholds[key]=custom;
+  saveSettings(tipSettings);
+  showToast(`✓ Thresholds saved for ${GRASS_TYPES[key].short}`);
+}
+
+function resetThresholds(){
+  const key=document.getElementById('settings-grass-sel')?.value||tipSettings.courseGrass||'tifeagle';
+  if(tipSettings.customThresholds)delete tipSettings.customThresholds[key];
+  saveSettings(tipSettings);
+  buildThresholdEditor();
+  showToast(`Reset to default thresholds for ${GRASS_TYPES[key].short}`);
+}
+
+function buildPerGreenList(){
+  const el=document.getElementById('per-green-grass-list');
+  if(!el)return;
+  el.innerHTML='';
+  GREEN_LIST.forEach(g=>{
+    const row=document.createElement('div');
+    row.className='green-grass-row';
+    const current=tipSettings.greenGrass?.[String(g.value)]||'';
+    const shortName=g.label.replace('Putting Green','PG').replace('Green ','G');
+    let opts=`<option value="">Course default (${GRASS_TYPES[tipSettings.courseGrass||'tifeagle'].short})</option>`;
+    Object.entries(GRASS_TYPES).forEach(([key,gt])=>{
+      opts+=`<option value="${key}"${current===key?' selected':''}>${gt.short}</option>`;
+    });
+    row.innerHTML=`<span class="gg-name">${shortName}</span><select class="gg-sel" data-green="${g.value}" onchange="saveGreenGrass(this)">${opts}</select>`;
+    el.appendChild(row);
+  });
+}
+
+function saveGreenGrass(sel){
+  const green=sel.dataset.green;
+  const key=sel.value;
+  if(!tipSettings.greenGrass)tipSettings.greenGrass={};
+  if(key)tipSettings.greenGrass[green]=key;
+  else delete tipSettings.greenGrass[green];
+  saveSettings(tipSettings);
+  showToast(`Green ${green}: ${key?GRASS_TYPES[key].short:'course default'}`);
+}
+
+function openSettings(){
+  const key=tipSettings.apiKey||'';
+  const apiInput=document.getElementById('api-key-input');
+  if(apiInput) apiInput.value=key?'••••••••••••'+key.slice(-4):'';
+  updateAIStatusUI();
+  updateSWStatus();
+  updateSettingsCourseInfo();
+  populateGrassSelects();
+  // Refresh OCR mode UI
+  ocrMode=tipSettings.ocrMode||'tesseract';
+  meterType=tipSettings.meterType||'digital';
+  updateOCRModeUI();
+  updateMeterTypeUI();
+  document.getElementById('settings-overlay').classList.add('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TESSERACT.JS OCR
+// ═══════════════════════════════════════════════════════════
+let ocrWorker = null;
+let ocrStatus = 'idle'; // idle | loading | ready | error
+let ocrMode = 'tesseract'; // tesseract | claude | off
+
+function setOCRMode(mode){
+  ocrMode = mode;
+  tipSettings.ocrMode = mode;
+  saveSettings(tipSettings);
+  updateOCRModeUI();
+  if(mode === 'tesseract' && ocrStatus === 'idle') initTesseract(false);
+}
+
+function updateOCRModeUI(){
+  ['tesseract','claude','off'].forEach(m=>{
+    const btn=document.getElementById(`ocr-btn-${m}`);
+    if(btn) btn.classList.toggle('selected', ocrMode===m);
+  });
+  const ts=document.getElementById('ocr-tesseract-section');
+  const cl=document.getElementById('ocr-claude-section');
+  if(ts) ts.style.display=ocrMode==='tesseract'?'block':'none';
+  if(cl) cl.style.display=ocrMode==='claude'?'block':'none';
+  updateOCRStatusBadge();
+}
+
+function updateOCRStatusBadge(progressText){
+  const wrap=document.getElementById('ocr-status-wrap');
+  const prog=document.getElementById('ocr-progress-text');
+  if(!wrap) return;
+  let badgeClass, badgeText;
+  if(ocrStatus==='ready'){badgeClass='ocr-ready';badgeText='✓ Tesseract Ready';}
+  else if(ocrStatus==='loading'){badgeClass='ocr-loading';badgeText='⏳ Initializing…';}
+  else if(ocrStatus==='error'){badgeClass='ocr-error';badgeText='⚠ OCR Error — check connection';}
+  else {badgeClass='ocr-off';badgeText='○ Not initialized';}
+  wrap.innerHTML=`<span class="ocr-status-badge ${badgeClass}">${badgeText}</span>`;
+  if(prog && progressText) prog.textContent=progressText;
+  else if(prog && ocrStatus==='ready') prog.textContent='Ready to read meter displays.';
+}
+
+async function initTesseract(manual=false){
+  if(ocrStatus==='ready') return;
+  if(ocrStatus==='loading') return;
+  if(typeof Tesseract === 'undefined'){
+    ocrStatus='error';
+    updateOCRStatusBadge('Tesseract library not loaded — check connection.');
+    return;
+  }
+  ocrStatus='loading';
+  updateOCRStatusBadge('Starting engine…');
+  try{
+    ocrWorker = await Tesseract.createWorker('7seg', 1, {
+      logger: m=>{
+        if(m.status==='loading tesseract core')           updateOCRStatusBadge('Loading OCR core…');
+        else if(m.status==='loading language traineddata') updateOCRStatusBadge('Loading 7-segment data…');
+        else if(m.status==='initialized api')              updateOCRStatusBadge('Finalizing…');
+      }
+    });
+    await ocrWorker.setParameters({
+      tessedit_char_whitelist: '0123456789.',
+      tessedit_pageseg_mode: '8', // single word — best for lone numbers
+    });
+    ocrStatus='ready';
+    updateOCRStatusBadge();
+    if(manual) showToast('✓ OCR engine ready');
+  } catch(e){
+    ocrStatus='error';
+    ocrWorker=null;
+    updateOCRStatusBadge('Failed: '+e.message);
+    console.warn('Tesseract init error:',e);
+  }
+}
+
+// ─── OTSU THRESHOLDING ────────────────────────────────────────────────────
+// Automatically finds optimal black/white cutoff — far better than fixed
+// contrast enhancement for 7-segment displays in variable lighting.
+function otsuThreshold(imageData){
+  const d=imageData.data, total=d.length/4;
+  const hist=new Array(256).fill(0);
+  for(let i=0;i<d.length;i+=4){
+    hist[Math.round(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])]++;
+  }
+  let sum=0;
+  for(let i=0;i<256;i++) sum+=i*hist[i];
+  let sumB=0,wB=0,maxVar=0,thresh=128;
+  for(let t=0;t<256;t++){
+    wB+=hist[t]; if(!wB) continue;
+    const wF=total-wB; if(!wF) break;
+    sumB+=t*hist[t];
+    const mB=sumB/wB, mF=(sum-sumB)/wF;
+    const v=wB*wF*(mB-mF)**2;
+    if(v>maxVar){maxVar=v;thresh=t;}
+  }
+  return thresh;
+}
+
+// Preprocess snap canvas before 7seg OCR:
+// crop to reticle area → scale 3× → grayscale → Otsu threshold → clean binary
+function preprocessForOCR(snapCanvas){
+  const W=snapCanvas.width, H=snapCanvas.height;
+  const rx=W*0.23, ry=H*0.24, rw=W*0.54, rh=H*0.52;
+  const scale=3;
+  const out=document.createElement('canvas');
+  out.width=Math.round(rw*scale);
+  out.height=Math.round(rh*scale);
+  const ctx=out.getContext('2d');
+  ctx.drawImage(snapCanvas, rx, ry, rw, rh, 0, 0, out.width, out.height);
+  // Step 1: grayscale
+  const img=ctx.getImageData(0,0,out.width,out.height);
+  const d=img.data;
+  for(let i=0;i<d.length;i+=4){
+    const g=Math.round(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]);
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  // Step 2: Otsu threshold → clean binary
+  const thresh=otsuThreshold(img);
+  for(let i=0;i<d.length;i+=4){
+    const val=d[i]>thresh?255:0;
+    d[i]=d[i+1]=d[i+2]=val;
+  }
+  ctx.putImageData(img,0,0);
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════
+// METER TYPE SYSTEM
+// ═══════════════════════════════════════════════════════════
+// digital → Tesseract 7seg OCR (Spectrum TDR, Field Scout, Aquaterr)
+// analog  → Claude Vision with analog gauge prompt (Turf-Tec, Lincoln)
+// manual  → skip OCR, user enters value in History
+let meterType = 'digital';
+
+const METER_TYPES = {
+  digital:{ name:'Digital / LCD',       short:'Digital', icon:'🔢', desc:'Segmented LCD or LED numeric display' },
+  analog: { name:'Analog Needle Dial',  short:'Analog',  icon:'⏱',  desc:'Needle/pointer on arc scale (Turf-Tec, Lincoln, Reotemp)' },
+  manual: { name:'Manual Entry Only',   short:'Manual',  icon:'✏️', desc:'Skip auto-reading — enter value in History after survey' }
+};
+
+function setMeterType(type){
+  meterType=type;
+  tipSettings.meterType=type;
+  saveSettings(tipSettings);
+  updateMeterTypeUI();
+}
+
+function updateMeterTypeUI(){
+  Object.keys(METER_TYPES).forEach(k=>{
+    const btn=document.getElementById(`meter-btn-${k}`);
+    if(btn) btn.classList.toggle('selected',meterType===k);
+  });
+  const digSec=document.getElementById('ocr-digital-section');
+  const anaSec=document.getElementById('ocr-analog-section');
+  const manSec=document.getElementById('ocr-manual-section');
+  if(digSec) digSec.style.display=meterType==='digital'?'block':'none';
+  if(anaSec) anaSec.style.display=meterType==='analog'?'block':'none';
+  if(manSec) manSec.style.display=meterType==='manual'?'block':'none';
+  // Sync OCR mode
+  if(meterType==='analog')  ocrMode='claude';
+  if(meterType==='manual')  ocrMode='off';
+  if(meterType==='digital') ocrMode=tipSettings.ocrMode||'tesseract';
+}
+
+async function runTesseractOCR(snapCanvas){
+  if(ocrStatus!=='ready'||!ocrWorker) return null;
+  try{
+    const preprocessed=preprocessForOCR(snapCanvas);
+    const result=await ocrWorker.recognize(preprocessed);
+    const raw=result.data.text.replace(/[^\d.]/g,'').trim();
+    // Handle multi-digit sequences: take first valid number found
+    const match=raw.match(/\d{1,3}(\.\d)?/);
+    if(!match) return null;
+    const num=parseFloat(match[0]);
+    if(isNaN(num)||num<0||num>100) return null;
+    return Math.round(num);
+  } catch(e){
+    console.warn('Tesseract recognition error:',e);
+    return null;
+  }
+}
+
+// Unified OCR dispatcher — routes based on meter type + OCR mode
+async function runMeterOCR(snapCanvas, photoB64){
+  const mt=meterType||tipSettings.meterType||'digital';
+  // Analog needle meters always use Claude Vision with analog-specific prompt
+  if(mt==='analog') return await runAIReading(photoB64, true);
+  // Manual mode — skip OCR entirely
+  if(mt==='manual') return null;
+  // Digital meter: use selected OCR mode
+  const mode=ocrMode||tipSettings.ocrMode||'tesseract';
+  if(mode==='tesseract') return await runTesseractOCR(snapCanvas);
+  if(mode==='claude')    return await runAIReading(photoB64, false);
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// THERMAL WARNING BANNER
+// ═══════════════════════════════════════════════════════════
+let thermalDismissedThisSession = false;
+
+function checkThermalWarning(tempF){
+  if(thermalDismissedThisSession) return;
+  const banner=document.getElementById('thermal-banner');
+  const text=document.getElementById('thermal-banner-text');
+  if(!banner) return;
+  if(tempF >= 110){
+    banner.className='th-extreme';
+    text.innerHTML=`🔥 ${tempF}°F — Extreme heat. High risk of device thermal shutdown mid-survey. Shield phone, use on-demand camera mode, and keep phone shaded.`;
+  } else if(tempF >= 105){
+    banner.className='th-hot';
+    text.innerHTML=`⚠️ ${tempF}°F — Very hot. Camera heat may cause iOS shutdown. Use on-demand mode or keep a damp cloth on phone between greens.`;
+  } else if(tempF >= 95){
+    banner.className='th-warn';
+    text.innerHTML=`☀️ ${tempF}°F — High ambient heat. Risk of device thermal shutdown during extended surveys. Consider on-demand camera mode.`;
+  } else {
+    banner.className='';
+    banner.style.display='none';
+    return;
+  }
+  banner.style.display='flex';
+}
+
+function dismissThermal(){
+  thermalDismissedThisSession=true;
+  document.getElementById('thermal-banner').style.display='none';
+}
+
+// ═══════════════════════════════════════════════════════════
+// ON-DEMAND CAMERA MODE
+// ═══════════════════════════════════════════════════════════
+let onDemandMode = false;
+
+function toggleOnDemandCamera(){
+  onDemandMode = !onDemandMode;
+  tipSettings.onDemandCamera = onDemandMode;
+  saveSettings(tipSettings);
+  applyOnDemandMode();
+  showToast(onDemandMode ? '🔆 On-demand mode ON — camera saves heat' : 'On-demand mode OFF — live camera');
+}
+
+function applyOnDemandMode(){
+  const btn=document.getElementById('ondemand-toggle-btn');
+  const overlay=document.getElementById('cam-hint-overlay');
+  const video=document.getElementById('live-video');
+  if(!btn) return;
+  if(onDemandMode){
+    btn.classList.add('active');
+    // Stop live stream and show hint overlay
+    if(liveStream){ stopLiveCamera(); }
+    if(overlay){ overlay.classList.add('show'); }
+    if(video){ video.style.display='none'; }
+  } else {
+    btn.classList.remove('active');
+    if(overlay){ overlay.classList.remove('show'); }
+    if(video){ video.style.display='block'; }
+    // Restart live camera
+    startLiveCamera();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+updateCaptureStats();
+updateHeaderStats();
+checkAlerts();
+loadStoredWeather();
+updateLiveStrip();
+updateAIStatusUI();
+initIrrSelectors();
+applySavedSunlight();
+applySavedSplitMode();
+updateNextGreenBtn();
+updateStaffBar();
+
+// Restore OCR mode + meter type
+ocrMode = tipSettings.ocrMode || 'tesseract';
+meterType = tipSettings.meterType || 'digital';
+
+// Restore on-demand camera mode
+onDemandMode = tipSettings.onDemandCamera || false;
+if(onDemandMode){
+  const btn=document.getElementById('ondemand-toggle-btn');
+  if(btn) btn.classList.add('active');
+}
+
+// Restore survey mode
+surveyMode = tipSettings.surveyMode || 'quick';
+setSurveyMode(surveyMode);
+if(tipSettings.defaultSqft) document.getElementById('sqft-input').value=tipSettings.defaultSqft;
+
+registerServiceWorker();
+
+// First-run setup or WiFi warning
+if(!tipSettings.setupComplete){
+  initSetupWizard();
+  document.getElementById('setup-wizard').classList.add('open');
+} else {
+  showWifiWarning();
+}
+
+// Start camera (respects on-demand mode)
+if(onDemandMode){
+  // Don't start live stream — show hint overlay
+  const overlay=document.getElementById('cam-hint-overlay');
+  if(overlay) overlay.classList.add('show');
+  startGPSWatch();
+  requestWakeLock();
+} else {
+  startLiveCamera();
+  startGPSWatch();
+  requestWakeLock();
+}
+
+// Initialize Tesseract in background (delay to not slow boot)
+if(ocrMode==='tesseract'){
+  setTimeout(()=>initTesseract(false), 2000);
+}
+</script>
+</body>
+</html>
